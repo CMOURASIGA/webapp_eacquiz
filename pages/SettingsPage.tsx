@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
@@ -188,7 +187,7 @@ function doGet(e) {
         state.players[params.nome].correctCount += 1;
       }
       state.answers[params.nome] = { respostaIdx: parseInt(params.respostaIdx), points: points };
-      props.setProperty('game_' + params.pin, JSON.stringify(state));
+      props.setProperty('game_' + pin, JSON.stringify(state));
       response = { status: 'success' };
     }
 
@@ -274,9 +273,9 @@ function doGet(e) {
                 <div className="mt-4 p-4 bg-black/40 rounded-xl border border-white/10 animate-in zoom-in">
                   <p className="text-xs text-amber-300 mb-2 font-bold uppercase">Passo a passo:</p>
                   <ol className="text-[10px] text-white/60 space-y-1 mb-4 list-decimal ml-4">
-                    <li>No Google Sheets: <b>Extensões > Apps Script</b>.</li>
+                    <li>No Google Sheets: <b>Extensões &gt; Apps Script</b>.</li>
                     <li>Substitua todo o código existente pelo código abaixo.</li>
-                    <li>Clique em <b>Implantar > Nova Implantação</b>.</li>
+                    <li>Clique em <b>Implantar &gt; Nova Implantação</b>.</li>
                     <li>Escolha <b>App da Web</b>. Acesso: <b>Qualquer Pessoa (Anyone)</b>.</li>
                     <li>Copie a URL que termina em <b>/exec</b> e cole acima.</li>
                   </ol>

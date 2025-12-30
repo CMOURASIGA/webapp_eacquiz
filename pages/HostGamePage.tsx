@@ -18,7 +18,7 @@ export const HostGamePage: React.FC = () => {
   const navigate = useNavigate();
   const { gameState, apiUrl, hostId } = useGameStore();
   
-  // Polling ativo
+  // Keep polling active
   useGamePolling(pin || null, true);
 
   const status = gameState?.status || 'LOBBY';
@@ -26,44 +26,62 @@ export const HostGamePage: React.FC = () => {
   const tempoNoPlacar = gameState?.tempoNoPlacar || 10;
   const currentIdx = gameState?.currentQuestionIndex || 0;
 
+  // Local timer for intermediate states (Reveal/Leaderboard)
   const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(10);
-  
-  // Guard para evitar múltiplas chamadas de transição no mesmo estado
-  const lastTransitionRef = useRef<string>("");
+  // Prevent double transitions
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  // Track last processed state to unlock transitions
+  const lastStateKey = useRef<string>("");
 
   const triggerNextState = async () => {
-    const transitionKey = `${status}_${currentIdx}`;
-    if (lastTransitionRef.current === transitionKey) return;
+    const currentKey = `${status}_${currentIdx}`;
+    
+    // If we already sent a request for this specific state/index, wait
+    if (isTransitioning || lastStateKey.current === currentKey) return;
 
     if (hostId && pin) {
-      lastTransitionRef.current = transitionKey;
+      setIsTransitioning(true);
+      lastStateKey.current = currentKey;
+      
       try {
         await gameService.nextGameState(apiUrl, pin, hostId);
       } catch (err) {
-        console.error("Falha ao avançar estado:", err);
-        lastTransitionRef.current = ""; // Reset em caso de erro para permitir retry
+        console.error("Transition failed:", err);
+        // On error, reset so we can try again
+        setIsTransitioning(false);
+        lastStateKey.current = "";
       }
     }
   };
 
-  // Timer da pergunta ativa (QUESTION)
+  // Reset transition lock when the polled state actually changes
+  useEffect(() => {
+    if (gameState) {
+      const currentKey = `${gameState.status}_${gameState.currentQuestionIndex}`;
+      if (currentKey !== lastStateKey.current) {
+        setIsTransitioning(false);
+      }
+    }
+  }, [gameState?.status, gameState?.currentQuestionIndex]);
+
+  // Main Question Timer
   const { timeLeft, isUrgent } = useQuestionTimer(
     status === 'QUESTION' ? (gameState?.questionStartTime || 0) : 0,
     gameState?.tempoPorPergunta || 20,
     () => {
-      if (status === 'QUESTION' && modoAutomatico) {
+      if (status === 'QUESTION' && modoAutomatico && !isTransitioning) {
         triggerNextState();
       }
     }
   );
 
-  // Gerenciamento de tempos de REVELAÇÃO e PLACAR
+  // Logic for intermediate states (Reveal and Leaderboard)
   useEffect(() => {
     let interval: any;
     
-    if (modoAutomatico) {
+    if (modoAutomatico && !isTransitioning) {
       if (status === 'ANSWER_REVEAL') {
-        // Revelação da resposta: tempo curto (3s) apenas para feedback visual
+        // Fast 3s reveal before leaderboard
         setAutoAdvanceTimer(3);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
@@ -75,7 +93,7 @@ export const HostGamePage: React.FC = () => {
           });
         }, 1000);
       } else if (status === 'LEADERBOARD') {
-        // Placar: tempo definido em configurações (padrão 10s)
+        // Strict 10s (or configured) leaderboard
         setAutoAdvanceTimer(tempoNoPlacar);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
@@ -92,24 +110,13 @@ export const HostGamePage: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [status, modoAutomatico, tempoNoPlacar, currentIdx]);
-
-  // Reset do guard quando o estado do jogo realmente muda no polling
-  useEffect(() => {
-    if (gameState) {
-      const currentKey = `${gameState.status}_${gameState.currentQuestionIndex}`;
-      if (lastTransitionRef.current !== currentKey) {
-        // Se o status vindo do servidor é diferente do que tentamos disparar,
-        // limpamos o guard apenas se a transição já foi processada.
-      }
-    }
-  }, [gameState?.status, gameState?.currentQuestionIndex]);
+  }, [status, modoAutomatico, tempoNoPlacar, currentIdx, isTransitioning]);
 
   if (!gameState) {
     return (
       <div className="flex flex-col items-center justify-center p-20 gap-4 text-center">
-        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-        <h2 className="text-2xl font-bold">Carregando sala...</h2>
+        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+        <h2 className="text-2xl font-bold">Aguardando Sala {pin}...</h2>
       </div>
     );
   }
@@ -127,25 +134,28 @@ export const HostGamePage: React.FC = () => {
       {status === 'LOBBY' && (
         <div className="flex flex-col items-center animate-in zoom-in duration-500">
           <Card className="w-full max-w-2xl text-center" heavy>
-            <p className="text-white/60 mb-2 uppercase tracking-widest text-sm font-bold">Aguardando participantes</p>
+            <p className="text-white/60 mb-2 uppercase tracking-widest text-sm font-bold">Lobby da Sala</p>
             <h1 className="text-8xl font-black mb-8 text-blue-400 drop-shadow-2xl">PIN: {pin}</h1>
             
             <div className="bg-black/20 rounded-3xl p-8 mb-10 border border-white/5 min-h-[160px] flex flex-wrap justify-center gap-4 items-center">
               {playersList.length === 0 ? (
-                <p className="italic opacity-30">Nenhum jogador na sala...</p>
+                <div className="opacity-30 flex flex-col items-center gap-2">
+                  <div className="animate-pulse w-2 h-2 bg-white rounded-full"></div>
+                  <p className="italic">Aguardando jogadores...</p>
+                </div>
               ) : (
                 playersList.map((p: any) => (
-                  <div key={p.nome} className="glass px-5 py-3 rounded-2xl flex items-center gap-3 animate-in scale-in duration-300">
+                  <div key={p.nome} className="glass px-5 py-3 rounded-2xl flex items-center gap-3 animate-in fade-in scale-in duration-300">
                     <span className="text-2xl">{p.avatar}</span>
-                    <span className="font-bold">{p.nome}</span>
+                    <span className="font-bold text-lg">{p.nome}</span>
                   </div>
                 ))
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" size="lg" onClick={() => navigate('/')}>Sair</Button>
-              <Button fullWidth size="lg" disabled={playersList.length === 0} onClick={handleStart}>
+              <Button variant="outline" size="lg" onClick={() => navigate('/')}>Cancelar</Button>
+              <Button fullWidth size="lg" disabled={playersList.length === 0} onClick={handleStart} className="shadow-lg shadow-blue-500/20">
                 Iniciar Jogo 🚀
               </Button>
             </div>
@@ -158,12 +168,12 @@ export const HostGamePage: React.FC = () => {
         <div className="animate-in slide-in-from-bottom duration-500">
           <div className="flex justify-between items-end mb-6">
             <div className="flex flex-col gap-2">
-               <span className="text-xs font-bold uppercase tracking-widest text-blue-400 opacity-60">Tempo de Resposta</span>
+               <span className="text-xs font-bold uppercase tracking-widest text-blue-400 opacity-60">Tempo para Resposta</span>
                <GameTimer timeLeft={timeLeft} isUrgent={isUrgent} />
             </div>
             
             <div className="flex flex-col items-end gap-2 text-right">
-               <span className="text-xs font-bold uppercase tracking-widest text-blue-400 opacity-60">Status da Sala</span>
+               <span className="text-xs font-bold uppercase tracking-widest text-blue-400 opacity-60">Participação</span>
                <div className="glass-heavy px-6 py-3 rounded-2xl font-black text-2xl border-white/10">
                  <span className="text-blue-400">{answersCount}</span>
                  <span className="opacity-20 mx-2">/</span>
@@ -184,7 +194,9 @@ export const HostGamePage: React.FC = () => {
           />
 
           <div className="mt-8 flex justify-center">
-             <Button variant="outline" size="sm" onClick={handleManualNext}>Pular ⏭️</Button>
+             <Button variant="outline" size="sm" onClick={handleManualNext} disabled={isTransitioning}>
+               {isTransitioning ? 'Processando...' : 'Pular Pergunta ⏭️'}
+             </Button>
           </div>
         </div>
       )}
@@ -193,7 +205,7 @@ export const HostGamePage: React.FC = () => {
       {status === 'ANSWER_REVEAL' && (
         <div className="animate-in zoom-in duration-500 text-center">
           <div className="inline-block px-8 py-2 bg-green-500/20 text-green-400 rounded-full font-black uppercase tracking-widest text-sm mb-6 border border-green-500/30">
-            A Resposta Correta era...
+            Resposta Correta
           </div>
           
           <QuestionCard 
@@ -214,13 +226,15 @@ export const HostGamePage: React.FC = () => {
           <div className="mt-12">
             {modoAutomatico ? (
               <div className="flex flex-col items-center gap-2">
-                <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Placar em</p>
-                <div className="text-3xl font-black text-blue-400 bg-blue-500/10 px-6 py-2 rounded-2xl">
+                <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Calculando placar em</p>
+                <div className="text-3xl font-black text-blue-400 bg-blue-500/10 px-6 py-2 rounded-2xl border border-blue-500/20">
                   {autoAdvanceTimer}s
                 </div>
               </div>
             ) : (
-              <Button size="lg" onClick={handleManualNext}>Ver Placar 📊</Button>
+              <Button size="lg" onClick={handleManualNext} disabled={isTransitioning}>
+                {isTransitioning ? 'Aguarde...' : 'Ver Placar 📊'}
+              </Button>
             )}
           </div>
         </div>
@@ -234,7 +248,7 @@ export const HostGamePage: React.FC = () => {
             
             {modoAutomatico && (
               <div className="flex items-center gap-4 glass-heavy px-6 py-3 rounded-2xl border border-blue-500/30">
-                <span className="text-xs font-bold text-white/50 uppercase tracking-tighter">Próxima em</span>
+                <span className="text-xs font-bold text-white/50 uppercase tracking-tighter">Próxima Rodada em</span>
                 <span className="text-3xl font-black text-blue-400 w-10 text-center">{autoAdvanceTimer}</span>
               </div>
             )}
@@ -244,8 +258,8 @@ export const HostGamePage: React.FC = () => {
           
           {!modoAutomatico && (
             <div className="mt-12 flex justify-center">
-              <Button size="lg" onClick={handleManualNext} className="min-w-[240px]">
-                {currentIdx < gameState.perguntas.length - 1 ? 'Próxima Pergunta ➔' : 'Ver Pódio 🏆'}
+              <Button size="lg" onClick={handleManualNext} disabled={isTransitioning} className="min-w-[240px]">
+                {isTransitioning ? 'Carregando...' : (currentIdx < gameState.perguntas.length - 1 ? 'Continuar ➔' : 'Ver Resultado Final 🏆')}
               </Button>
             </div>
           )}
@@ -256,18 +270,19 @@ export const HostGamePage: React.FC = () => {
       {status === 'FINAL' && (
         <div className="animate-in slide-in-from-bottom duration-1000">
           <div className="text-center mb-16">
-            <h2 className="text-7xl font-black mb-4 tracking-tighter uppercase italic">Campeões <span className="text-blue-400">EAC</span></h2>
-            <div className="w-32 h-2 bg-blue-500 mx-auto rounded-full"></div>
+            <h2 className="text-7xl font-black mb-4 tracking-tighter uppercase italic">Vencedores <span className="text-blue-400">EAC</span></h2>
+            <div className="w-32 h-2 bg-blue-500 mx-auto rounded-full shadow-lg shadow-blue-500/50"></div>
           </div>
           
           <Podium entries={gameState.leaderboard || []} />
           
           <div className="max-w-3xl mx-auto mt-24">
+            <h3 className="text-xl font-bold mb-8 text-white/30 uppercase tracking-widest text-center">Ranking Geral</h3>
             <LeaderboardTable entries={gameState.leaderboard || []} />
           </div>
           
           <div className="mt-20 flex justify-center">
-            <Button size="lg" variant="secondary" onClick={() => navigate('/')}>Finalizar Sessão</Button>
+            <Button size="lg" variant="secondary" onClick={() => navigate('/')}>Voltar ao Início</Button>
           </div>
         </div>
       )}

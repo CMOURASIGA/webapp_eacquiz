@@ -1,43 +1,42 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export const useQuestionTimer = (startTime: number, durationSeconds: number, onExpire?: () => void) => {
   const [timeLeft, setTimeLeft] = useState(durationSeconds);
   const [isExpired, setIsExpired] = useState(false);
+  const onExpireRef = useRef(onExpire);
+
+  // Keep ref up to date to avoid stale closures
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  }, [onExpire]);
 
   useEffect(() => {
-    // Reset quando o startTime muda (nova pergunta)
-    if (startTime > 0) {
-      const now = Date.now();
-      const elapsed = Math.floor((now - startTime) / 1000);
-      const remaining = Math.max(0, durationSeconds - elapsed);
-      
-      setTimeLeft(remaining);
-      setIsExpired(remaining <= 0);
-    } else {
+    if (!startTime || startTime <= 0) {
       setTimeLeft(durationSeconds);
       setIsExpired(false);
+      return;
     }
-  }, [startTime, durationSeconds]);
 
-  useEffect(() => {
-    if (!startTime || startTime <= 0 || isExpired) return;
-
-    const interval = setInterval(() => {
+    const calculate = () => {
       const now = Date.now();
       const elapsed = Math.floor((now - startTime) / 1000);
       const remaining = Math.max(0, durationSeconds - elapsed);
       
       setTimeLeft(remaining);
       
-      if (remaining <= 0) {
+      if (remaining <= 0 && !isExpired) {
         setIsExpired(true);
-        if (onExpire) onExpire();
+        if (onExpireRef.current) onExpireRef.current();
       }
-    }, 1000);
+    };
 
+    // Initial calculation
+    calculate();
+
+    const interval = setInterval(calculate, 1000);
     return () => clearInterval(interval);
-  }, [startTime, durationSeconds, onExpire, isExpired]);
+  }, [startTime, durationSeconds, isExpired]);
 
   return {
     timeLeft,

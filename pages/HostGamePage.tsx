@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useGamePolling } from '../hooks/useGamePolling';
+// Corrected: Removed useGameTimer as it is not exported from useQuestionTimer
 import { useQuestionTimer } from '../hooks/useQuestionTimer';
 import { gameService } from '../services/gameService';
 import { Card } from '../components/ui/Card';
@@ -69,21 +70,7 @@ export const HostGamePage: React.FC = () => {
     return () => clearInterval(interval);
   }, [status, modoAutomatico, pin, hostId, apiUrl]);
 
-  // Se não houver gameState ainda, mostra carregamento mas mantendo o layout
-  if (!gameState) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 gap-4 text-center">
-        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
-        <h2 className="text-2xl font-bold">Iniciando Sala {pin}...</h2>
-        <p className="opacity-60">Sincronizando com o Google Sheets</p>
-        <Button variant="outline" className="mt-8" onClick={() => navigate('/')}>Cancelar e Voltar</Button>
-      </div>
-    );
-  }
-
-  const handleStart = () => hostId && pin && gameService.startGame(apiUrl, pin, hostId);
-  const handleNext = () => hostId && pin && gameService.nextGameState(apiUrl, pin, hostId);
-
+  // Derived data with safety fallback
   const playersList = Object.values(gameState?.players || {});
   const playerCount = playersList.length;
   const answersCount = Object.keys(gameState?.answers || {}).length;
@@ -97,6 +84,22 @@ export const HostGamePage: React.FC = () => {
       return () => clearTimeout(t);
     }
   }, [answersCount, playerCount, status, modoAutomatico, hostId, apiUrl, pin]);
+
+  // Se não houver gameState ainda, mostra carregamento mas mantendo o layout
+  // CRITICAL: Hooks are all above this line now!
+  if (!gameState) {
+    return (
+      <div className="flex flex-col items-center justify-center p-20 gap-4 text-center">
+        <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></div>
+        <h2 className="text-2xl font-bold">Iniciando Sala {pin}...</h2>
+        <p className="opacity-60">Sincronizando com o Google Sheets</p>
+        <Button variant="outline" className="mt-8" onClick={() => navigate('/')}>Cancelar e Voltar</Button>
+      </div>
+    );
+  }
+
+  const handleStart = () => hostId && pin && gameService.startGame(apiUrl, pin, hostId);
+  const handleNext = () => hostId && pin && gameService.nextGameState(apiUrl, pin, hostId);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">

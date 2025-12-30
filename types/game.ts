@@ -31,6 +31,7 @@ export interface LeaderboardEntry {
 
 export interface GameSettings {
   tempoPorPergunta: number;
+  tempoNoPlacar: number; // Novo: Tempo de visualização do placar
   modoDeJogo: 'automatico' | 'manual';
 }
 
@@ -41,6 +42,7 @@ export interface GameState {
   currentQuestionIndex: number;
   players: Record<string, Player>;
   tempoPorPergunta: number;
+  tempoNoPlacar: number; // Novo: Sincronizado do backend
   modoDeJogo: 'automatico' | 'manual';
   questionStartTime: number;
   answers: Record<string, LastAnswer>;
@@ -49,13 +51,11 @@ export interface GameState {
   leaderboard: LeaderboardEntry[];
 }
 
-// Representa um quiz listado (apenas metadados)
 export interface QuizSummary {
   id: string;
   nome: string;
 }
 
-// Representa o quiz completo
 export interface Quiz extends QuizSummary {
   perguntas: Question[];
 }

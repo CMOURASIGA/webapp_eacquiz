@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useGamePolling } from '../hooks/useGamePolling';
-// Corrected: Removed useGameTimer as it is not exported from useQuestionTimer
 import { useQuestionTimer } from '../hooks/useQuestionTimer';
 import { gameService } from '../services/gameService';
 import { Card } from '../components/ui/Card';
@@ -22,13 +21,17 @@ export const HostGamePage: React.FC = () => {
   // Polling ativo enquanto houver um PIN
   useGamePolling(pin || null, true);
 
-  const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(10);
   const status = gameState?.status || 'LOBBY';
   const modoAutomatico = gameState?.modoDeJogo === 'automatico';
+  
+  // Configuração de tempo vinda do estado do jogo (padrão 10 se não existir)
+  const tempoNoPlacar = gameState?.tempoNoPlacar || 10;
+
+  const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(tempoNoPlacar);
 
   const { timeLeft, isUrgent } = useQuestionTimer(
     gameState?.questionStartTime || 0,
-    gameState?.tempoPorPergunta || 0,
+    gameState?.tempoPorPergunta || 20,
     () => {
       // Quando o tempo da pergunta acaba, vai para a revelação
       if (status === 'QUESTION' && hostId && pin) {
@@ -43,6 +46,7 @@ export const HostGamePage: React.FC = () => {
     
     if (modoAutomatico && hostId && pin) {
       if (status === 'ANSWER_REVEAL') {
+        // Revelação da resposta: tempo fixo de 5s para leitura antes do placar
         setAutoAdvanceTimer(5);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
@@ -54,7 +58,8 @@ export const HostGamePage: React.FC = () => {
           });
         }, 1000);
       } else if (status === 'LEADERBOARD') {
-        setAutoAdvanceTimer(10);
+        // No placar, usamos o tempo configurado (padrão 10s)
+        setAutoAdvanceTimer(tempoNoPlacar);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
             if (prev <= 1) {
@@ -68,7 +73,7 @@ export const HostGamePage: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [status, modoAutomatico, pin, hostId, apiUrl]);
+  }, [status, modoAutomatico, pin, hostId, apiUrl, tempoNoPlacar]);
 
   // Derived data with safety fallback
   const playersList = Object.values(gameState?.players || {});
@@ -85,8 +90,6 @@ export const HostGamePage: React.FC = () => {
     }
   }, [answersCount, playerCount, status, modoAutomatico, hostId, apiUrl, pin]);
 
-  // Se não houver gameState ainda, mostra carregamento mas mantendo o layout
-  // CRITICAL: Hooks are all above this line now!
   if (!gameState) {
     return (
       <div className="flex flex-col items-center justify-center p-20 gap-4 text-center">
@@ -222,7 +225,7 @@ export const HostGamePage: React.FC = () => {
           <div className="mt-12">
             {modoAutomatico ? (
               <div className="flex flex-col items-center gap-2">
-                <p className="text-white/40 text-sm font-medium uppercase tracking-widest">Próximo em</p>
+                <p className="text-white/40 text-sm font-medium uppercase tracking-widest">Mostrando placar em</p>
                 <div className="text-4xl font-black text-blue-400 bg-blue-500/10 px-6 py-2 rounded-2xl border border-blue-500/20">
                   {autoAdvanceTimer}s
                 </div>

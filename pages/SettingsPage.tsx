@@ -15,6 +15,7 @@ export const SettingsPage: React.FC = () => {
   
   const [settings, setSettings] = useLocalStorageState<GameSettings>('eac_settings', {
     tempoPorPergunta: 20,
+    tempoNoPlacar: 10, // Padrão 10 segundos
     modoDeJogo: 'automatico'
   });
 
@@ -72,8 +73,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const fullGasCode = `/**
- * BACKEND EAC QUIZ - VERSÃO FINAL (quiz_perguntas)
- * Copie este código e cole no seu Apps Script
+ * BACKEND EAC QUIZ - VERSÃO FINAL (v2 - tempoNoPlacar)
  */
 function doGet(e) {
   const params = e.parameter;
@@ -109,7 +109,7 @@ function doGet(e) {
         .filter(row => row[0] && row[0].toString().trim() === targetQuizId)
         .map((row, i) => {
           const letraCorreta = (row[7] || "").toString().trim().toUpperCase();
-          const corretaIdx = letraCorreta.charCodeAt(0) - 65; // A=0, B=1...
+          const corretaIdx = letraCorreta.charCodeAt(0) - 65;
 
           return {
             id: row[1] || ('q' + i),
@@ -131,6 +131,7 @@ function doGet(e) {
         currentQuestionIndex: 0,
         players: {},
         tempoPorPergunta: parseInt(params.tempoPorPergunta || 20),
+        tempoNoPlacar: parseInt(params.tempoNoPlacar || 10),
         modoDeJogo: params.modoDeJogo || 'automatico',
         questionStartTime: 0,
         answers: {},
@@ -201,7 +202,7 @@ function doGet(e) {
           state.answers = {};
         } else { state.status = 'FINAL'; }
       }
-      props.setProperty('game_' + params.pin, JSON.stringify(state));
+      props.setProperty('game_' + pin, JSON.stringify(state));
       response = { status: 'success' };
     }
   } catch (err) { response = { status: 'error', message: err.toString() }; }
@@ -218,16 +219,65 @@ function doGet(e) {
         </div>
         
         <div className="space-y-8">
+          {/* Configurações de Tempo */}
           <div className="space-y-4">
+            <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Tempos de Jogo</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 opacity-80">Tempo p/ Resposta (s)</label>
+                <input 
+                  type="number"
+                  min={5}
+                  max={120}
+                  value={localSettings.tempoPorPergunta}
+                  onChange={(e) => setLocalSettings({...localSettings, tempoPorPergunta: parseInt(e.target.value)})}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 opacity-80">Tempo no Placar (s)</label>
+                <input 
+                  type="number"
+                  min={3}
+                  max={60}
+                  value={localSettings.tempoNoPlacar}
+                  onChange={(e) => setLocalSettings({...localSettings, tempoNoPlacar: parseInt(e.target.value)})}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3"
+                />
+                <p className="text-[10px] opacity-40 mt-1">* Duração entre perguntas no modo automático.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 opacity-80">Modo de Avanço</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  onClick={() => setLocalSettings({...localSettings, modoDeJogo: 'automatico'})}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                    localSettings.modoDeJogo === 'automatico' ? 'bg-blue-600 border-blue-400' : 'bg-white/5 border-white/10'
+                  }`}
+                >
+                  Automático
+                </button>
+                <button 
+                  onClick={() => setLocalSettings({...localSettings, modoDeJogo: 'manual'})}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                    localSettings.modoDeJogo === 'manual' ? 'bg-blue-600 border-blue-400' : 'bg-white/5 border-white/10'
+                  }`}
+                >
+                  Manual
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-6 border-t border-white/10">
             <div className="flex items-center justify-between">
               <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Conexão Google</h3>
               {isEnvUrl && <Tag color="green">Ambiente Ativo</Tag>}
             </div>
             
-            <p className="text-xs text-white/50 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-              O sistema agora busca os quizzes da aba <b>quiz_perguntas</b>, agrupando pelo nome na <b>Coluna A</b>.
-            </p>
-
             <div>
               <label className="block text-sm font-medium mb-2 opacity-80">URL da API (Apps Script)</label>
               <div className="relative">
@@ -243,17 +293,7 @@ function doGet(e) {
                     validationResult.status === 'error' ? 'border-red-500' : 'border-white/20'
                   }`}
                 />
-                {isEnvUrl && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 font-bold bg-blue-500/20 px-2 py-1 rounded">
-                    VERCEL
-                  </div>
-                )}
               </div>
-              {isEnvUrl && (
-                <p className="text-[10px] text-blue-300 mt-2 italic">
-                  * Esta URL está sendo definida via variável de ambiente (Vercel) e não pode ser editada manualmente.
-                </p>
-              )}
               
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button 
@@ -273,10 +313,9 @@ function doGet(e) {
                   <p className="text-xs text-amber-300 mb-2 font-bold uppercase">Passo a passo:</p>
                   <ol className="text-[10px] text-white/60 space-y-1 mb-4 list-decimal ml-4">
                     <li>No Google Sheets: <b>Extensões &gt; Apps Script</b>.</li>
-                    <li>Substitua todo o código existente pelo código abaixo.</li>
-                    <li>Clique em <b>Implantar &gt; Nova Implantação</b>.</li>
-                    <li>Escolha <b>App da Web</b>. Acesso: <b>Qualquer Pessoa (Anyone)</b>.</li>
-                    <li>Copie a URL que termina em <b>/exec</b> e cole acima ou no Vercel.</li>
+                    <li>Substitua todo o código pelo novo código abaixo (Versão v2).</li>
+                    <li>Clique em <b>Implantar &gt; Gerenciar Implantações &gt; Editar (Lápis)</b>.</li>
+                    <li>Escolha <b>Nova Versão</b> e clique em <b>Implantar</b>.</li>
                   </ol>
                   <textarea 
                     readOnly 

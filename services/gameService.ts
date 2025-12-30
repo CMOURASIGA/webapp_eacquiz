@@ -44,6 +44,7 @@ export const gameService = {
       action: 'createGameSession', 
       quizId, 
       tempoPorPergunta: settings.tempoPorPergunta,
+      tempoNoPlacar: settings.tempoNoPlacar, // Novo
       modoDeJogo: settings.modoDeJogo 
     });
     return { pin: data.pin, hostId: data.hostId };

@@ -3,41 +3,47 @@ import { GameState, GameSettings } from '../types/game';
 
 /**
  * Utilitário para chamadas à API do Apps Script.
- * O Google Apps Script exige que usemos GET (doGet) para evitar problemas complexos de CORS em redirecionamentos.
+ * O GAS exige GET para evitar problemas de CORS em redirecionamentos complexos.
  */
 async function fetchGas(apiUrl: string, params: Record<string, any>) {
   if (!apiUrl) throw new Error("URL da API não configurada.");
   
   try {
-    const url = new URL(apiUrl);
-    // Adiciona timestamp para evitar cache do navegador
-    url.searchParams.append('_t', Date.now().toString());
-    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    // Construção manual da URL para garantir compatibilidade total
+    const queryString = Object.keys(params)
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+      .join('&');
     
-    const response = await fetch(url.toString(), {
+    const separator = apiUrl.includes('?') ? '&' : '?';
+    const finalUrl = `${apiUrl}${separator}${queryString}&_cache=${Date.now()}`;
+
+    const response = await fetch(finalUrl, {
       method: 'GET',
       mode: 'cors',
-      redirect: 'follow', // O Google redireciona de /exec para um servidor de conteúdo
-      headers: {
-        'Accept': 'application/json',
-      }
+      redirect: 'follow', // OBRIGATÓRIO para Google Apps Script
     });
     
     if (!response.ok) {
-      throw new Error(`Servidor respondeu com erro: ${response.status}`);
+      throw new Error(`Erro HTTP: ${response.status}`);
     }
 
     const data = await response.json();
     
-    if (data.status === 'error' || data.error) {
-      throw new Error(data.message || data.error || 'Erro desconhecido na planilha.');
+    if (data.status === 'error') {
+      throw new Error(data.message || 'Erro reportado pela planilha.');
     }
     
     return data;
   } catch (error: any) {
-    console.error("Fetch Error:", error);
-    if (error.message.includes('Failed to fetch')) {
-      throw new Error("Erro de Conexão: O navegador bloqueou a requisição. Certifique-se de que o Script foi implantado como 'Web App' e 'Anyone' tem acesso.");
+    console.error("Erro na comunicação com a API:", error);
+    
+    if (error.message === 'Failed to fetch') {
+      throw new Error(
+        "Falha de Rede (CORS): O Script não respondeu. Verifique se:\n" +
+        "1. A URL termina com /exec\n" +
+        "2. Você publicou como 'Web App'\n" +
+        "3. Em 'Who has access' você escolheu 'Anyone' (Qualquer pessoa)."
+      );
     }
     throw error;
   }
@@ -50,12 +56,13 @@ export const gameService = {
   },
 
   createGameSession: async (apiUrl: string, quizId: string, settings: GameSettings) => {
-    return fetchGas(apiUrl, { 
+    const data = await fetchGas(apiUrl, { 
       action: 'createGameSession', 
       quizId, 
       tempoPorPergunta: settings.tempoPorPergunta,
       modoDeJogo: settings.modoDeJogo 
     });
+    return { pin: data.pin, hostId: data.hostId };
   },
 
   joinGame: async (apiUrl: string, pin: string, playerName: string, avatar: string) => {
@@ -65,7 +72,7 @@ export const gameService = {
       nome: playerName, 
       avatar 
     });
-    return { gameState: data.gameState, playerId: playerName }; 
+    return { gameState: data.gameState, playerId: data.playerId || playerName }; 
   },
 
   getGameState: async (apiUrl: string, pin: string): Promise<GameState | null> => {
@@ -87,7 +94,7 @@ export const gameService = {
       pin, 
       nome: playerName, 
       respostaIdx: answerIdx, 
-      tempoGasto: timeSpent / 1000 
+      tempoGasto: timeSpent 
     });
   },
 

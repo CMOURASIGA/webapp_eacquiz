@@ -1,15 +1,13 @@
 
-import { GameState, GameSettings } from '../types/game';
+import { GameState, GameSettings, QuizSummary } from '../types/game';
 
 /**
  * Utilitário para chamadas à API do Apps Script.
- * O GAS exige GET para evitar problemas de CORS em redirecionamentos complexos.
  */
 async function fetchGas(apiUrl: string, params: Record<string, any>) {
   if (!apiUrl) throw new Error("URL da API não configurada.");
   
   try {
-    // Construção manual da URL para garantir compatibilidade total
     const queryString = Object.keys(params)
       .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
       .join('&');
@@ -20,7 +18,7 @@ async function fetchGas(apiUrl: string, params: Record<string, any>) {
     const response = await fetch(finalUrl, {
       method: 'GET',
       mode: 'cors',
-      redirect: 'follow', // OBRIGATÓRIO para Google Apps Script
+      redirect: 'follow',
     });
     
     if (!response.ok) {
@@ -36,21 +34,15 @@ async function fetchGas(apiUrl: string, params: Record<string, any>) {
     return data;
   } catch (error: any) {
     console.error("Erro na comunicação com a API:", error);
-    
     if (error.message === 'Failed to fetch') {
-      throw new Error(
-        "Falha de Rede (CORS): O Script não respondeu. Verifique se:\n" +
-        "1. A URL termina com /exec\n" +
-        "2. Você publicou como 'Web App'\n" +
-        "3. Em 'Who has access' você escolheu 'Anyone' (Qualquer pessoa)."
-      );
+      throw new Error("Erro de conexão. Verifique se o Script está publicado como 'Anyone'.");
     }
     throw error;
   }
 }
 
 export const gameService = {
-  getQuizzes: async (apiUrl: string) => {
+  getQuizzes: async (apiUrl: string): Promise<QuizSummary[]> => {
     const data = await fetchGas(apiUrl, { action: 'getQuizzes' });
     return data.quizzes || [];
   },

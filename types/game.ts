@@ -4,7 +4,7 @@ export type GameStatus = 'LOBBY' | 'QUESTION' | 'ANSWER_REVEAL' | 'LEADERBOARD' 
 export interface Question {
   id: string;
   pergunta: string;
-  opcoes: string[]; // Exactly 4 options
+  opcoes: string[]; // Exatamente 4 opções
   corretaIdx: number;
 }
 
@@ -49,8 +49,13 @@ export interface GameState {
   leaderboard: LeaderboardEntry[];
 }
 
-export interface Quiz {
+// Representa um quiz listado (apenas metadados)
+export interface QuizSummary {
   id: string;
   nome: string;
+}
+
+// Representa o quiz completo
+export interface Quiz extends QuizSummary {
   perguntas: Question[];
 }

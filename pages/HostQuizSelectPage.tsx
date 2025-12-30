@@ -79,12 +79,15 @@ export const HostQuizSelectPage: React.FC = () => {
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/')}>
+            🏠 Início
+          </Button>
           <Button variant="outline" size="sm" onClick={loadQuizzes} disabled={loading}>
-            {loading ? 'Sincronizando...' : '🔄 Atualizar Lista'}
+            {loading ? 'Sincronizando...' : '🔄 Atualizar'}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate('/settings')}>
-            ⚙️ Configurar API
+            ⚙️ API
           </Button>
         </div>
       </div>
@@ -120,11 +123,11 @@ export const HostQuizSelectPage: React.FC = () => {
                 <div className="bg-blue-500/20 p-3 rounded-xl">
                   <span className="text-2xl">📝</span>
                 </div>
-                <Tag color="blue">Quiz Disponível</Tag>
+                <Tag color="blue">Ativo</Tag>
               </div>
               <h3 className="text-xl font-bold mb-4 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{quiz.nome}</h3>
               <p className="text-white/50 mb-8 flex-grow text-sm leading-relaxed">
-                Este quiz foi extraído da sua planilha. Clique abaixo para iniciar uma sala.
+                Clique para abrir esta sala e gerar um novo código PIN para os jogadores.
               </p>
               <Button fullWidth onClick={() => handleSelect(quiz.id)}>
                 Iniciar Sala 🚀

@@ -57,8 +57,12 @@ export const gameService = {
   getGameState: async (apiUrl: string, pin: string): Promise<GameState | null> => {
     try {
       const data = await fetchGas(apiUrl, { action: 'getGameState', pin });
+      if (!data || !data.gameState) return null;
       return data.gameState;
-    } catch (e) { return null; }
+    } catch (e) { 
+      console.warn("Falha ao obter estado do jogo:", e);
+      return null; 
+    }
   },
 
   startGame: async (apiUrl: string, pin: string, hostId: string) => {

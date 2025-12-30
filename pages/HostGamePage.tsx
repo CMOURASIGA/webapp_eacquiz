@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { useGamePolling } from '../hooks/useGamePolling';
@@ -18,52 +18,73 @@ export const HostGamePage: React.FC = () => {
   const navigate = useNavigate();
   const { gameState, apiUrl, hostId } = useGameStore();
   
-  // Polling ativo enquanto houver um PIN
+  // Polling active while PIN is present
   useGamePolling(pin || null, true);
 
   const status = gameState?.status || 'LOBBY';
   const modoAutomatico = gameState?.modoDeJogo === 'automatico';
-  
-  // Configuração de tempo vinda do estado do jogo (padrão 10 se não existir)
   const tempoNoPlacar = gameState?.tempoNoPlacar || 10;
+  const currentQuestionIdx = gameState?.currentQuestionIndex || 0;
 
   const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(tempoNoPlacar);
+  
+  // Guard to prevent multiple calls to nextGameState for the same state transition
+  const transitionGuardRef = useRef<{ status: string; index: number } | null>(null);
+
+  const triggerNextState = async () => {
+    // Check if we already triggered transition for this state and question index
+    if (
+      transitionGuardRef.current?.status === status && 
+      transitionGuardRef.current?.index === currentQuestionIdx
+    ) {
+      return;
+    }
+
+    if (hostId && pin) {
+      transitionGuardRef.current = { status, index: currentQuestionIdx };
+      try {
+        await gameService.nextGameState(apiUrl, pin, hostId);
+      } catch (err) {
+        console.error("Failed to transition state:", err);
+        // Clear guard on error to allow retry
+        transitionGuardRef.current = null;
+      }
+    }
+  };
 
   const { timeLeft, isUrgent } = useQuestionTimer(
-    gameState?.questionStartTime || 0,
+    status === 'QUESTION' ? (gameState?.questionStartTime || 0) : 0,
     gameState?.tempoPorPergunta || 20,
     () => {
-      // Quando o tempo da pergunta acaba, vai para a revelação
-      if (status === 'QUESTION' && hostId && pin) {
-        gameService.nextGameState(apiUrl, pin, hostId);
+      // Trigger when question time expires
+      if (status === 'QUESTION' && modoAutomatico) {
+        triggerNextState();
       }
     }
   );
 
-  // Efeito para gerenciar transições automáticas de status
+  // Manage automatic transitions for reveal and leaderboard
   useEffect(() => {
     let interval: any;
     
-    if (modoAutomatico && hostId && pin) {
+    if (modoAutomatico) {
       if (status === 'ANSWER_REVEAL') {
-        // Revelação da resposta: tempo fixo de 5s para leitura antes do placar
         setAutoAdvanceTimer(5);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
             if (prev <= 1) {
-              gameService.nextGameState(apiUrl, pin, hostId);
+              triggerNextState();
               return 0;
             }
             return prev - 1;
           });
         }, 1000);
       } else if (status === 'LEADERBOARD') {
-        // No placar, usamos o tempo configurado (padrão 10s)
         setAutoAdvanceTimer(tempoNoPlacar);
         interval = setInterval(() => {
           setAutoAdvanceTimer(prev => {
             if (prev <= 1) {
-              gameService.nextGameState(apiUrl, pin, hostId);
+              triggerNextState();
               return 0;
             }
             return prev - 1;
@@ -73,22 +94,39 @@ export const HostGamePage: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [status, modoAutomatico, pin, hostId, apiUrl, tempoNoPlacar]);
+  }, [status, modoAutomatico, pin, hostId, apiUrl, tempoNoPlacar, currentQuestionIdx]);
 
-  // Derived data with safety fallback
+  // Handle "All Answered" early transition
   const playersList = Object.values(gameState?.players || {});
   const playerCount = playersList.length;
   const answersCount = Object.keys(gameState?.answers || {}).length;
 
-  // Se todos responderam antes do tempo no modo automático
   useEffect(() => {
-    if (status === 'QUESTION' && modoAutomatico && playerCount > 0 && answersCount === playerCount && hostId && pin) {
+    if (
+      status === 'QUESTION' && 
+      modoAutomatico && 
+      playerCount > 0 && 
+      answersCount === playerCount && 
+      !transitionGuardRef.current
+    ) {
       const t = setTimeout(() => {
-        gameService.nextGameState(apiUrl, pin, hostId);
+        if (status === 'QUESTION') triggerNextState();
       }, 1500);
       return () => clearTimeout(t);
     }
-  }, [answersCount, playerCount, status, modoAutomatico, hostId, apiUrl, pin]);
+  }, [answersCount, playerCount, status, modoAutomatico]);
+
+  // Reset guard when gameState changes to a different status or index
+  useEffect(() => {
+    if (gameState) {
+      if (
+        transitionGuardRef.current?.status !== gameState.status || 
+        transitionGuardRef.current?.index !== gameState.currentQuestionIndex
+      ) {
+        transitionGuardRef.current = null;
+      }
+    }
+  }, [gameState?.status, gameState?.currentQuestionIndex]);
 
   if (!gameState) {
     return (
@@ -102,12 +140,12 @@ export const HostGamePage: React.FC = () => {
   }
 
   const handleStart = () => hostId && pin && gameService.startGame(apiUrl, pin, hostId);
-  const handleNext = () => hostId && pin && gameService.nextGameState(apiUrl, pin, hostId);
+  const handleNextManual = () => triggerNextState();
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       
-      {/* TELA DE LOBBY */}
+      {/* LOBBY STATE */}
       {status === 'LOBBY' && (
         <div className="flex flex-col items-center animate-in zoom-in duration-500">
           <Card className="w-full max-w-2xl text-center" heavy>
@@ -140,7 +178,7 @@ export const HostGamePage: React.FC = () => {
         </div>
       )}
 
-      {/* TELA DE PERGUNTA ATIVA */}
+      {/* QUESTION STATE */}
       {status === 'QUESTION' && (
         <div className="animate-in slide-in-from-bottom duration-500">
           <div className="flex justify-between items-end mb-6">
@@ -178,7 +216,7 @@ export const HostGamePage: React.FC = () => {
                 <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4 border-b border-white/10 pb-2">Jogadores</h4>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar flex-grow">
                   {playersList.map((p: any) => {
-                    const hasAnswered = gameState.answers && gameState.answers[p.nome];
+                    const hasAnswered = !!gameState.answers?.[p.nome];
                     return (
                       <div key={p.nome} className={`flex items-center justify-between p-3 rounded-xl transition-all ${hasAnswered ? 'bg-green-500/20 border border-green-500/30' : 'bg-white/5 opacity-60'}`}>
                         <div className="flex items-center gap-2 overflow-hidden">
@@ -195,16 +233,16 @@ export const HostGamePage: React.FC = () => {
           </div>
 
           <div className="mt-8 flex justify-center">
-             <Button variant="outline" size="sm" onClick={handleNext}>Pular Pergunta ⏭️</Button>
+             <Button variant="outline" size="sm" onClick={handleNextManual}>Pular Pergunta ⏭️</Button>
           </div>
         </div>
       )}
 
-      {/* TELA DE REVELAÇÃO DA RESPOSTA */}
+      {/* ANSWER REVEAL STATE */}
       {status === 'ANSWER_REVEAL' && (
         <div className="animate-in zoom-in duration-500 text-center">
           <div className="inline-block px-8 py-2 bg-green-500/20 text-green-400 rounded-full font-black uppercase tracking-widest text-sm mb-6 border border-green-500/30">
-            Confira a Correta!
+            Resposta Correta
           </div>
           
           <QuestionCard 
@@ -231,13 +269,13 @@ export const HostGamePage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <Button size="lg" onClick={handleNext}>Ver Placar 📊</Button>
+              <Button size="lg" onClick={handleNextManual}>Ver Placar 📊</Button>
             )}
           </div>
         </div>
       )}
 
-      {/* TELA DE PLACAR / LEADERBOARD */}
+      {/* LEADERBOARD STATE */}
       {status === 'LEADERBOARD' && (
         <div className="animate-in slide-in-from-right duration-500 max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
@@ -255,7 +293,7 @@ export const HostGamePage: React.FC = () => {
           
           <div className="mt-12 flex justify-center">
             {!modoAutomatico && (
-              <Button size="lg" onClick={handleNext} className="min-w-[240px]">
+              <Button size="lg" onClick={handleNextManual} className="min-w-[240px]">
                 {gameState.currentQuestionIndex < gameState.perguntas.length - 1 ? 'Continuar ➔' : 'Ver Pódio Final 🏆'}
               </Button>
             )}
@@ -263,7 +301,7 @@ export const HostGamePage: React.FC = () => {
         </div>
       )}
 
-      {/* TELA FINAL / PÓDIO */}
+      {/* FINAL STATE */}
       {status === 'FINAL' && (
         <div className="animate-in slide-in-from-bottom duration-1000">
           <div className="text-center mb-16">

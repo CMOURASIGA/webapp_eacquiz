@@ -4,25 +4,24 @@ import { gameService } from '../services/gameService';
 import { useGameStore } from '../store/gameStore';
 
 export const useGamePolling = (pin: string | null, isActive: boolean) => {
-  const { setGameState } = useGameStore();
-  // Fix: Changed NodeJS.Timeout to any to avoid missing namespace error in browser environment
+  const { setGameState, apiUrl } = useGameStore();
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!pin || !isActive) return;
+    if (!pin || !isActive || !apiUrl) return;
 
     const poll = async () => {
-      const state = await gameService.getGameState(pin);
+      const state = await gameService.getGameState(apiUrl, pin);
       if (state) {
         setGameState(state);
       }
     };
 
     poll();
-    timerRef.current = setInterval(poll, 1500);
+    timerRef.current = setInterval(poll, 2000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [pin, isActive, setGameState]);
+  }, [pin, isActive, apiUrl, setGameState]);
 };

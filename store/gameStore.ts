@@ -9,10 +9,16 @@ interface GameStore {
   playerName: string | null;
   playerAvatar: string | null;
   gameState: GameState | null;
+  apiUrl: string;
+  spreadsheetUrl: string;
+  hostId: string | null;
   setRole: (role: 'host' | 'player' | null) => void;
   setPlayerIdentity: (identity: { id: string; name: string; avatar: string }) => void;
   setGamePin: (pin: string | null) => void;
   setGameState: (state: GameState | null) => void;
+  setApiUrl: (url: string) => void;
+  setSpreadsheetUrl: (url: string) => void;
+  setHostId: (id: string | null) => void;
   clearGame: () => void;
 }
 
@@ -25,6 +31,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [playerName, setPlayerName] = useState<string | null>(null);
   const [playerAvatar, setPlayerAvatar] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [hostId, setHostId] = useState<string | null>(localStorage.getItem('eac_host_id'));
+  
+  const [apiUrl, setApiUrlState] = useState<string>(() => {
+    return localStorage.getItem('eac_api_url') || (import.meta as any).env?.VITE_GAS_API_URL || '';
+  });
+
+  const [spreadsheetUrl, setSpreadsheetUrlState] = useState<string>(() => {
+    return localStorage.getItem('eac_spreadsheet_url') || '';
+  });
+
+  const setApiUrl = (url: string) => {
+    localStorage.setItem('eac_api_url', url);
+    setApiUrlState(url);
+  };
+
+  const setSpreadsheetUrl = (url: string) => {
+    localStorage.setItem('eac_spreadsheet_url', url);
+    setSpreadsheetUrlState(url);
+  };
 
   const setPlayerIdentity = useCallback((identity: { id: string; name: string; avatar: string }) => {
     setPlayerId(identity.id);
@@ -39,6 +64,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPlayerName(null);
     setPlayerAvatar(null);
     setGameState(null);
+    setHostId(null);
+    localStorage.removeItem('eac_host_id');
   }, []);
 
   const value: GameStore = {
@@ -48,14 +75,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     playerName,
     playerAvatar,
     gameState,
+    apiUrl,
+    spreadsheetUrl,
+    hostId,
     setRole,
     setPlayerIdentity,
     setGamePin,
     setGameState,
+    setApiUrl,
+    setSpreadsheetUrl,
+    setHostId: (id) => {
+      if (id) localStorage.setItem('eac_host_id', id);
+      else localStorage.removeItem('eac_host_id');
+      setHostId(id);
+    },
     clearGame,
   };
 
-  // Fix: Replaced JSX with React.createElement to avoid parsing errors in .ts file
   return React.createElement(GameContext.Provider, { value }, children);
 };
 

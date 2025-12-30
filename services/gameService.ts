@@ -1,136 +1,97 @@
 
-import { GameState, GameSettings, GameStatus, Player, Question, LastAnswer, LeaderboardEntry } from '../types/game';
-import { quizService } from './quizService';
+import { GameState, GameSettings } from '../types/game';
 
-// Global in-memory state for mock
-const games: Record<string, GameState> = {};
+/**
+ * Utilitário para chamadas à API do Apps Script.
+ * O Google Apps Script exige que usemos GET (doGet) para evitar problemas complexos de CORS em redirecionamentos.
+ */
+async function fetchGas(apiUrl: string, params: Record<string, any>) {
+  if (!apiUrl) throw new Error("URL da API não configurada.");
+  
+  try {
+    const url = new URL(apiUrl);
+    // Adiciona timestamp para evitar cache do navegador
+    url.searchParams.append('_t', Date.now().toString());
+    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+    
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow', // O Google redireciona de /exec para um servidor de conteúdo
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Servidor respondeu com erro: ${response.status}`);
+    }
 
-const generatePin = () => Math.floor(1000 + Math.random() * 9000).toString();
-
-const updateLeaderboard = (gameState: GameState): LeaderboardEntry[] => {
-  return Object.values(gameState.players)
-    .map(p => ({
-      playerId: p.id,
-      nome: p.nome,
-      avatar: p.avatar,
-      score: p.score,
-      correctCount: p.correctCount
-    }))
-    .sort((a, b) => b.score - a.score || b.correctCount - a.correctCount);
-};
+    const data = await response.json();
+    
+    if (data.status === 'error' || data.error) {
+      throw new Error(data.message || data.error || 'Erro desconhecido na planilha.');
+    }
+    
+    return data;
+  } catch (error: any) {
+    console.error("Fetch Error:", error);
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error("Erro de Conexão: O navegador bloqueou a requisição. Certifique-se de que o Script foi implantado como 'Web App' e 'Anyone' tem acesso.");
+    }
+    throw error;
+  }
+}
 
 export const gameService = {
-  getQuizzes: quizService.getQuizzes,
+  getQuizzes: async (apiUrl: string) => {
+    const data = await fetchGas(apiUrl, { action: 'getQuizzes' });
+    return data.quizzes || [];
+  },
 
-  createGameSession: async (quizId: string, settings: GameSettings): Promise<{ pin: string }> => {
-    const quiz = await quizService.getQuizById(quizId);
-    if (!quiz) throw new Error("Quiz not found");
-
-    const pin = generatePin();
-    const initialState: GameState = {
-      pin,
-      status: 'LOBBY',
-      perguntas: quiz.perguntas,
-      currentQuestionIndex: 0,
-      players: {},
+  createGameSession: async (apiUrl: string, quizId: string, settings: GameSettings) => {
+    return fetchGas(apiUrl, { 
+      action: 'createGameSession', 
+      quizId, 
       tempoPorPergunta: settings.tempoPorPergunta,
-      modoDeJogo: settings.modoDeJogo,
-      questionStartTime: 0,
-      answers: {},
-      lastAnswers: {},
-      lastCorrectAnswer: -1,
-      leaderboard: []
-    };
-
-    games[pin] = initialState;
-    return { pin };
+      modoDeJogo: settings.modoDeJogo 
+    });
   },
 
-  joinGame: async (pin: string, playerName: string, avatar: string): Promise<{ gameState: GameState; playerId: string }> => {
-    const game = games[pin];
-    if (!game) throw new Error("PIN Inválido");
-    if (game.status !== 'LOBBY') throw new Error("Jogo já iniciado");
-
-    const playerId = Math.random().toString(36).substring(7);
-    const newPlayer: Player = {
-      id: playerId,
-      nome: playerName,
-      avatar,
-      score: 0,
-      correctCount: 0
-    };
-
-    game.players[playerId] = newPlayer;
-    game.leaderboard = updateLeaderboard(game);
-    
-    return { gameState: { ...game }, playerId };
+  joinGame: async (apiUrl: string, pin: string, playerName: string, avatar: string) => {
+    const data = await fetchGas(apiUrl, { 
+      action: 'joinGame', 
+      pin, 
+      nome: playerName, 
+      avatar 
+    });
+    return { gameState: data.gameState, playerId: playerName }; 
   },
 
-  startGame: async (pin: string): Promise<void> => {
-    const game = games[pin];
-    if (!game) return;
-    
-    game.status = 'QUESTION';
-    game.currentQuestionIndex = 0;
-    game.questionStartTime = Date.now();
-    game.answers = {};
-  },
-
-  getGameState: async (pin: string): Promise<GameState | null> => {
-    return games[pin] ? { ...games[pin] } : null;
-  },
-
-  submitAnswer: async (pin: string, playerId: string, answerIdx: number, timeSpentMs: number): Promise<{ pointsEarned: number }> => {
-    const game = games[pin];
-    if (!game || game.status !== 'QUESTION') return { pointsEarned: 0 };
-
-    const currentQuestion = game.perguntas[game.currentQuestionIndex];
-    const isCorrect = answerIdx === currentQuestion.corretaIdx;
-    
-    let pointsEarned = 0;
-    if (isCorrect) {
-      // Base 1000 points, losing value over time (up to 50% loss at max time)
-      const maxTime = game.tempoPorPergunta * 1000;
-      const timeFactor = Math.max(0.5, 1 - (timeSpentMs / maxTime));
-      pointsEarned = Math.round(1000 * timeFactor);
-      
-      game.players[playerId].score += pointsEarned;
-      game.players[playerId].correctCount += 1;
+  getGameState: async (apiUrl: string, pin: string): Promise<GameState | null> => {
+    try {
+      const data = await fetchGas(apiUrl, { action: 'getGameState', pin });
+      return data.gameState;
+    } catch (e) {
+      return null;
     }
-
-    game.answers[playerId] = { respostaIdx: answerIdx, points: pointsEarned };
-    return { pointsEarned };
   },
 
-  nextGameState: async (pin: string): Promise<void> => {
-    const game = games[pin];
-    if (!game) return;
+  startGame: async (apiUrl: string, pin: string, hostId: string) => {
+    return fetchGas(apiUrl, { action: 'startGame', pin, hostId });
+  },
 
-    switch (game.status) {
-      case 'QUESTION':
-        game.status = 'ANSWER_REVEAL';
-        game.lastCorrectAnswer = game.perguntas[game.currentQuestionIndex].corretaIdx;
-        game.lastAnswers = { ...game.answers };
-        game.leaderboard = updateLeaderboard(game);
-        break;
-      
-      case 'ANSWER_REVEAL':
-        game.status = 'LEADERBOARD';
-        break;
-      
-      case 'LEADERBOARD':
-        if (game.currentQuestionIndex < game.perguntas.length - 1) {
-          game.currentQuestionIndex += 1;
-          game.status = 'QUESTION';
-          game.questionStartTime = Date.now();
-          game.answers = {};
-        } else {
-          game.status = 'FINAL';
-        }
-        break;
-      
-      default:
-        break;
-    }
+  submitAnswer: async (apiUrl: string, pin: string, playerName: string, answerIdx: number, timeSpent: number) => {
+    return fetchGas(apiUrl, { 
+      action: 'submitAnswer', 
+      pin, 
+      nome: playerName, 
+      respostaIdx: answerIdx, 
+      tempoGasto: timeSpent / 1000 
+    });
+  },
+
+  nextGameState: async (apiUrl: string, pin: string, hostId: string) => {
+    return fetchGas(apiUrl, { action: 'nextGameState', pin, hostId });
   }
 };

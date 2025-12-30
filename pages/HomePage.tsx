@@ -7,7 +7,7 @@ import { useGameStore } from '../store/gameStore';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { clearGame } = useGameStore();
+  const { clearGame, apiUrl } = useGameStore();
 
   const handleJoin = () => {
     clearGame();
@@ -23,14 +23,21 @@ export const HomePage: React.FC = () => {
   const hasResumableGame = !!resumePin;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh]">
+    <div className="flex flex-col items-center justify-center min-h-[70vh] animate-in fade-in duration-700">
       <div className="mb-8 text-center animate-bounce">
-         <div className="inline-block w-20 h-20 bg-blue-500 rounded-2xl flex items-center justify-center font-bold text-4xl text-white shadow-2xl">E</div>
+         <img 
+          src="https://i.imgur.com/c5XQ7TW.png" 
+          alt="EAC Logo" 
+          className="w-32 h-32 object-contain rounded-2xl shadow-2xl bg-blue-500/10 p-2"
+          onError={(e) => {
+            (e.target as any).src = 'https://i.imgur.com/Uo2eG7x.png'; 
+          }}
+        />
       </div>
       
       <Card className="w-full max-w-md text-center">
         <h1 className="text-3xl font-bold mb-2">EAC Quiz</h1>
-        <p className="text-white/60 mb-8">A plataforma de aprendizado gamificado em tempo real.</p>
+        <p className="text-white/60 mb-8">A plataforma de aprendizado gamificado em tempo real integrada com Google Sheets.</p>
         
         <div className="space-y-4">
           <Button fullWidth size="lg" onClick={handleJoin}>
@@ -43,6 +50,14 @@ export const HomePage: React.FC = () => {
             ⚙️ Configurações
           </Button>
         </div>
+
+        {!apiUrl && (
+          <div className="mt-6 p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl">
+            <p className="text-xs text-amber-200">
+              ⚠️ A URL da API do Google Sheets não está configurada. Vá em Configurações para conectar sua planilha.
+            </p>
+          </div>
+        )}
 
         {hasResumableGame && (
           <div className="mt-8 pt-8 border-t border-white/10">

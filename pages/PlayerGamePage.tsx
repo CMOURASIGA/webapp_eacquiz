@@ -14,7 +14,7 @@ import { Tag } from '../components/ui/Tag';
 export const PlayerGamePage: React.FC = () => {
   const { pin } = useParams<{ pin: string }>();
   const navigate = useNavigate();
-  const { gameState, playerId, clearGame } = useGameStore();
+  const { gameState, playerId, playerName, clearGame, apiUrl } = useGameStore();
   
   useGamePolling(pin || null, true);
 
@@ -40,13 +40,17 @@ export const PlayerGamePage: React.FC = () => {
   }
 
   const handleSelectAnswer = async (idx: number) => {
-    if (hasAnswered) return;
+    if (hasAnswered || !playerName) return;
     
     setSelectedIdx(idx);
     setHasAnswered(true);
     
     const timeSpent = Date.now() - gameState.questionStartTime;
-    await gameService.submitAnswer(pin!, playerId, idx, timeSpent);
+    try {
+      await gameService.submitAnswer(apiUrl, pin!, playerName, idx, timeSpent);
+    } catch (e) {
+      console.error("Erro ao enviar resposta", e);
+    }
   };
 
   const handleExit = () => {
@@ -56,8 +60,8 @@ export const PlayerGamePage: React.FC = () => {
     }
   };
 
-  const myPlayer = gameState.players[playerId];
-  const lastAns = gameState.lastAnswers?.[playerId];
+  const myPlayer = (gameState.players as any)[playerName || ''];
+  const lastAns = (gameState.lastAnswers as any)?.[playerName || ''];
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -123,7 +127,7 @@ export const PlayerGamePage: React.FC = () => {
               <div className="py-8">
                 <div className="text-6xl mb-4">❌</div>
                 <h3 className="text-3xl font-black text-red-400 mb-2">
-                  {lastAns?.respostaIdx === null ? 'TEMPO ESGOTADO!' : 'INCORRETO!'}
+                  {lastAns?.respostaIdx === undefined || lastAns?.respostaIdx === null ? 'TEMPO ESGOTADO!' : 'INCORRETO!'}
                 </h3>
                 <p className="text-white/60">Sorte na próxima!</p>
               </div>

@@ -10,7 +10,7 @@ import { isValidPin, isValidName } from '../utils/validation';
 
 export const PlayerJoinPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setRole, setPlayerIdentity, setGamePin } = useGameStore();
+  const { setRole, setPlayerIdentity, setGamePin, apiUrl } = useGameStore();
   
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');
@@ -22,12 +22,13 @@ export const PlayerJoinPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
+    if (!apiUrl) return setError('URL da API não configurada. Vá em Configurações.');
     if (!isValidPin(pin)) return setError('PIN deve ter 4 dígitos');
     if (!isValidName(name)) return setError('Nome deve ter entre 2 e 15 caracteres');
 
     setLoading(true);
     try {
-      const { gameState, playerId } = await gameService.joinGame(pin, name, avatar);
+      const { gameState, playerId } = await gameService.joinGame(apiUrl, pin, name, avatar);
       
       setRole('player');
       setGamePin(pin);
@@ -47,7 +48,7 @@ export const PlayerJoinPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card>
         <h2 className="text-2xl font-bold mb-6 text-center">Entrar no EAC Quiz</h2>
         
@@ -80,7 +81,7 @@ export const PlayerJoinPage: React.FC = () => {
             <AvatarPicker selected={avatar} onSelect={setAvatar} />
           </div>
 
-          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-400 text-sm text-center font-medium bg-red-500/10 p-2 rounded-lg">{error}</p>}
 
           <div className="pt-4 flex gap-3">
              <Button type="button" variant="secondary" fullWidth onClick={() => navigate('/')}>Voltar</Button>

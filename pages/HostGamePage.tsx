@@ -16,7 +16,7 @@ import { GameTimer } from '../components/game/GameTimer';
 export const HostGamePage: React.FC = () => {
   const { pin } = useParams<{ pin: string }>();
   const navigate = useNavigate();
-  const { gameState } = useGameStore();
+  const { gameState, apiUrl, hostId } = useGameStore();
   
   useGamePolling(pin || null, true);
 
@@ -24,8 +24,8 @@ export const HostGamePage: React.FC = () => {
     gameState?.questionStartTime || 0,
     gameState?.tempoPorPergunta || 0,
     () => {
-      if (gameState?.status === 'QUESTION') {
-        gameService.nextGameState(pin!);
+      if (gameState?.status === 'QUESTION' && hostId) {
+        gameService.nextGameState(apiUrl, pin!, hostId);
       }
     }
   );
@@ -33,14 +33,13 @@ export const HostGamePage: React.FC = () => {
   const [autoAdvanceTimer, setAutoAdvanceTimer] = useState(5);
 
   useEffect(() => {
-    // Fix: Changed NodeJS.Timeout to any
     let interval: any;
     if (gameState?.modoDeJogo === 'automatico' && (gameState.status === 'ANSWER_REVEAL' || gameState.status === 'LEADERBOARD')) {
       setAutoAdvanceTimer(5);
       interval = setInterval(() => {
         setAutoAdvanceTimer(prev => {
           if (prev <= 1) {
-            gameService.nextGameState(pin!);
+            if (hostId) gameService.nextGameState(apiUrl, pin!, hostId);
             return 5;
           }
           return prev - 1;
@@ -48,33 +47,32 @@ export const HostGamePage: React.FC = () => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [gameState?.status, gameState?.modoDeJogo, pin]);
+  }, [gameState?.status, gameState?.modoDeJogo, pin, hostId, apiUrl]);
 
   if (!gameState) {
     return <div className="p-12 text-center">Carregando jogo...</div>;
   }
 
-  const handleStart = () => gameService.startGame(pin!);
-  const handleNext = () => gameService.nextGameState(pin!);
+  const handleStart = () => hostId && gameService.startGame(apiUrl, pin!, hostId);
+  const handleNext = () => hostId && gameService.nextGameState(apiUrl, pin!, hostId);
 
   const playerCount = Object.keys(gameState.players).length;
-  const answerCount = Object.keys(gameState.answers).length;
+  const answerCount = Object.keys(gameState.answers || {}).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {gameState.status === 'LOBBY' && (
         <div className="flex flex-col items-center">
           <Card className="w-full max-w-2xl text-center" heavy>
             <p className="text-white/60 mb-2 uppercase tracking-widest text-sm">Entre no jogo em</p>
             <h1 className="text-7xl font-black mb-8 text-blue-400">PIN: {pin}</h1>
             
-            <div className="flex flex-wrap justify-center gap-4 mb-12">
+            <div className="flex flex-wrap justify-center gap-4 mb-12 min-h-[60px]">
               {playerCount === 0 ? (
                 <p className="text-white/40 italic">Aguardando jogadores entrarem...</p>
               ) : (
-                // Fix: Cast p to any to avoid "unknown" type errors if Object.values is not correctly inferred
                 Object.values(gameState.players).map((p: any) => (
-                  <div key={p.id} className="glass px-4 py-2 rounded-xl flex items-center gap-2 animate-in fade-in zoom-in duration-500">
+                  <div key={p.nome} className="glass px-4 py-2 rounded-xl flex items-center gap-2 animate-in fade-in zoom-in duration-500">
                     <span className="text-xl">{p.avatar}</span>
                     <span className="font-bold">{p.nome}</span>
                   </div>

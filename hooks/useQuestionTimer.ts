@@ -5,13 +5,18 @@ export const useQuestionTimer = (startTime: number, durationSeconds: number, onE
   const [timeLeft, setTimeLeft] = useState(durationSeconds);
   const [isExpired, setIsExpired] = useState(false);
 
-  // Reset local state when a new question starts
   useEffect(() => {
+    // Reset quando o startTime muda (nova pergunta)
     if (startTime > 0) {
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTime) / 1000);
+      const remaining = Math.max(0, durationSeconds - elapsed);
+      
+      setTimeLeft(remaining);
+      setIsExpired(remaining <= 0);
+    } else {
+      setTimeLeft(durationSeconds);
       setIsExpired(false);
-      // Initialize timeLeft immediately based on current drift
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      setTimeLeft(Math.max(0, durationSeconds - elapsed));
     }
   }, [startTime, durationSeconds]);
 
@@ -27,9 +32,7 @@ export const useQuestionTimer = (startTime: number, durationSeconds: number, onE
       
       if (remaining <= 0) {
         setIsExpired(true);
-        if (onExpire) {
-          onExpire();
-        }
+        if (onExpire) onExpire();
       }
     }, 1000);
 

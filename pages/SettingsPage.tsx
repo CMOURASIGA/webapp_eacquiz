@@ -15,7 +15,7 @@ export const SettingsPage: React.FC = () => {
   
   const [settings, setSettings] = useLocalStorageState<GameSettings>('eac_settings', {
     tempoPorPergunta: 20,
-    tempoNoPlacar: 10, // Padrão 10 segundos
+    tempoNoPlacar: 10,
     modoDeJogo: 'automatico'
   });
 
@@ -60,12 +60,12 @@ export const SettingsPage: React.FC = () => {
       const result = await gameService.getQuizzes(urlToValidate);
       setValidationResult({ 
         status: 'success', 
-        message: `Conectado à planilha "${result.spreadsheetName}"! Encontramos ${result.quizzes.length} quizzes únicos na Coluna A.` 
+        message: `Conectado à planilha "${result.spreadsheetName}"! Encontramos ${result.quizzes.length} quizzes.` 
       });
     } catch (error: any) {
       setValidationResult({ 
         status: 'error', 
-        message: 'A URL informada não respondeu corretamente. Verifique se publicou como "Qualquer pessoa".' 
+        message: 'A URL informada não respondeu. Verifique se publicou como "Qualquer pessoa".' 
       });
     } finally {
       setIsValidating(false);
@@ -73,7 +73,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const fullGasCode = `/**
- * BACKEND EAC QUIZ - VERSÃO FINAL (v2 - tempoNoPlacar)
+ * BACKEND EAC QUIZ - V3 (Estabilidade de Tempo)
  */
 function doGet(e) {
   const params = e.parameter;
@@ -86,7 +86,7 @@ function doGet(e) {
 
   try {
     const sheet = ss.getSheetByName(QUIZ_SHEET_NAME);
-    if (!sheet) throw new Error("Aba '" + QUIZ_SHEET_NAME + "' não encontrada na planilha.");
+    if (!sheet) throw new Error("Aba '" + QUIZ_SHEET_NAME + "' não encontrada.");
 
     if (action === 'getQuizzes') {
       const lastRow = sheet.getLastRow();
@@ -110,7 +110,6 @@ function doGet(e) {
         .map((row, i) => {
           const letraCorreta = (row[7] || "").toString().trim().toUpperCase();
           const corretaIdx = letraCorreta.charCodeAt(0) - 65;
-
           return {
             id: row[1] || ('q' + i),
             pergunta: row[2],
@@ -120,7 +119,7 @@ function doGet(e) {
         })
         .filter(q => q.opcoes.length === 4 && q.corretaIdx >= 0 && q.corretaIdx <= 3);
 
-      if (questions.length === 0) throw new Error("Nenhuma pergunta válida encontrada para o quiz: " + targetQuizId);
+      if (questions.length === 0) throw new Error("Sem perguntas para: " + targetQuizId);
 
       const hostId = "host_" + Date.now();
       const state = {
@@ -145,8 +144,7 @@ function doGet(e) {
     }
 
     if (action === 'getGameState') {
-      const pin = params.pin;
-      const raw = props.getProperty('game_' + pin);
+      const raw = props.getProperty('game_' + params.pin);
       response = { status: 'success', gameState: JSON.parse(raw) };
     }
 
@@ -198,11 +196,11 @@ function doGet(e) {
         if (state.currentQuestionIndex < state.perguntas.length - 1) {
           state.currentQuestionIndex++;
           state.status = 'QUESTION';
-          state.questionStartTime = Date.now();
+          state.questionStartTime = Date.now(); // RESET CRÍTICO AQUI
           state.answers = {};
         } else { state.status = 'FINAL'; }
       }
-      props.setProperty('game_' + pin, JSON.stringify(state));
+      props.setProperty('game_' + params.pin, JSON.stringify(state));
       response = { status: 'success' };
     }
   } catch (err) { response = { status: 'error', message: err.toString() }; }
@@ -219,7 +217,6 @@ function doGet(e) {
         </div>
         
         <div className="space-y-8">
-          {/* Configurações de Tempo */}
           <div className="space-y-4">
             <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Tempos de Jogo</h3>
             
@@ -245,7 +242,6 @@ function doGet(e) {
                   onChange={(e) => setLocalSettings({...localSettings, tempoNoPlacar: parseInt(e.target.value)})}
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3"
                 />
-                <p className="text-[10px] opacity-40 mt-1">* Duração entre perguntas no modo automático.</p>
               </div>
             </div>
 
@@ -275,62 +271,42 @@ function doGet(e) {
           <div className="space-y-4 pt-6 border-t border-white/10">
             <div className="flex items-center justify-between">
               <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Conexão Google</h3>
-              {isEnvUrl && <Tag color="green">Ambiente Ativo</Tag>}
             </div>
             
             <div>
               <label className="block text-sm font-medium mb-2 opacity-80">URL da API (Apps Script)</label>
-              <div className="relative">
-                <input 
-                  type="text"
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  value={isEnvUrl ? apiUrl : localApiUrl}
-                  disabled={isEnvUrl}
-                  onChange={(e) => setLocalApiUrl(e.target.value)}
-                  className={`w-full bg-white/10 border rounded-xl px-4 py-3 text-sm font-mono ${
-                    isEnvUrl ? 'opacity-60 cursor-not-allowed border-blue-500/50' :
-                    validationResult.status === 'success' ? 'border-green-500' : 
-                    validationResult.status === 'error' ? 'border-red-500' : 'border-white/20'
-                  }`}
-                />
-              </div>
+              <input 
+                type="text"
+                placeholder="https://script.google.com/macros/s/.../exec"
+                value={isEnvUrl ? apiUrl : localApiUrl}
+                disabled={isEnvUrl}
+                onChange={(e) => setLocalApiUrl(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm font-mono"
+              />
               
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button 
-                  variant={validationResult.status === 'success' ? 'success' : 'secondary'}
+                  variant="secondary"
                   onClick={handleValidateApi}
                   disabled={isValidating || (!localApiUrl && !apiUrl)}
                 >
                   {isValidating ? 'Validando...' : '🔍 Validar Conexão'}
                 </Button>
                 <Button variant="outline" onClick={() => setShowScriptHelp(!showScriptHelp)}>
-                  📋 Código do Backend
+                  📋 Código do Backend (V3)
                 </Button>
               </div>
 
               {showScriptHelp && (
                 <div className="mt-4 p-4 bg-black/40 rounded-xl border border-white/10 animate-in zoom-in">
-                  <p className="text-xs text-amber-300 mb-2 font-bold uppercase">Passo a passo:</p>
-                  <ol className="text-[10px] text-white/60 space-y-1 mb-4 list-decimal ml-4">
-                    <li>No Google Sheets: <b>Extensões &gt; Apps Script</b>.</li>
-                    <li>Substitua todo o código pelo novo código abaixo (Versão v2).</li>
-                    <li>Clique em <b>Implantar &gt; Gerenciar Implantações &gt; Editar (Lápis)</b>.</li>
-                    <li>Escolha <b>Nova Versão</b> e clique em <b>Implantar</b>.</li>
-                  </ol>
+                  <p className="text-xs text-amber-300 mb-2 font-bold uppercase">Importante:</p>
+                  <p className="text-[10px] text-white/60 mb-4">Certifique-se de implantar como uma <b>Nova Versão</b> após atualizar o código.</p>
                   <textarea 
                     readOnly 
                     className="w-full h-32 bg-black/50 text-[9px] font-mono p-2 rounded border border-white/10"
                     value={fullGasCode}
                     onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                   />
-                </div>
-              )}
-
-              {validationResult.status && (
-                <div className={`mt-3 p-4 rounded-xl text-xs font-medium ${
-                  validationResult.status === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                }`}>
-                  {validationResult.message}
                 </div>
               )}
             </div>
@@ -342,7 +318,7 @@ function doGet(e) {
                 onClick={handleFullReset}
                 className="w-full text-[10px] text-red-400/30 hover:text-red-400 transition-colors py-2 uppercase font-bold tracking-widest"
               >
-                Apagar Tudo e Resetar App
+                Resetar App
               </button>
           </div>
         </div>

@@ -33,8 +33,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [hostId, setHostId] = useState<string | null>(localStorage.getItem('eac_host_id'));
   
+  // Removido fallback VITE_GAS_API_URL para evitar confusão com dados antigos/mockados
   const [apiUrl, setApiUrlState] = useState<string>(() => {
-    return localStorage.getItem('eac_api_url') || (import.meta as any).env?.VITE_GAS_API_URL || '';
+    return localStorage.getItem('eac_api_url') || '';
   });
 
   const [spreadsheetUrl, setSpreadsheetUrlState] = useState<string>(() => {

@@ -1,9 +1,6 @@
 
 import { GameState, GameSettings, QuizSummary } from '../types/game';
 
-/**
- * Utilitário para chamadas à API do Apps Script.
- */
 async function fetchGas(apiUrl: string, params: Record<string, any>) {
   if (!apiUrl) throw new Error("URL da API não configurada.");
   
@@ -21,30 +18,25 @@ async function fetchGas(apiUrl: string, params: Record<string, any>) {
       redirect: 'follow',
     });
     
-    if (!response.ok) {
-      throw new Error(`Erro HTTP: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
 
     const data = await response.json();
-    
-    if (data.status === 'error') {
-      throw new Error(data.message || 'Erro reportado pela planilha.');
-    }
+    if (data.status === 'error') throw new Error(data.message || 'Erro na planilha.');
     
     return data;
   } catch (error: any) {
-    console.error("Erro na comunicação com a API:", error);
-    if (error.message === 'Failed to fetch') {
-      throw new Error("Erro de conexão. Verifique se o Script está publicado como 'Anyone'.");
-    }
+    console.error("Erro API:", error);
     throw error;
   }
 }
 
 export const gameService = {
-  getQuizzes: async (apiUrl: string): Promise<QuizSummary[]> => {
+  getQuizzes: async (apiUrl: string): Promise<{ quizzes: QuizSummary[], spreadsheetName: string }> => {
     const data = await fetchGas(apiUrl, { action: 'getQuizzes' });
-    return data.quizzes || [];
+    return { 
+      quizzes: data.quizzes || [], 
+      spreadsheetName: data.spreadsheetName || 'Planilha Desconhecida' 
+    };
   },
 
   createGameSession: async (apiUrl: string, quizId: string, settings: GameSettings) => {
@@ -58,12 +50,7 @@ export const gameService = {
   },
 
   joinGame: async (apiUrl: string, pin: string, playerName: string, avatar: string) => {
-    const data = await fetchGas(apiUrl, { 
-      action: 'joinGame', 
-      pin, 
-      nome: playerName, 
-      avatar 
-    });
+    const data = await fetchGas(apiUrl, { action: 'joinGame', pin, nome: playerName, avatar });
     return { gameState: data.gameState, playerId: data.playerId || playerName }; 
   },
 
@@ -71,9 +58,7 @@ export const gameService = {
     try {
       const data = await fetchGas(apiUrl, { action: 'getGameState', pin });
       return data.gameState;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   },
 
   startGame: async (apiUrl: string, pin: string, hostId: string) => {
@@ -81,13 +66,7 @@ export const gameService = {
   },
 
   submitAnswer: async (apiUrl: string, pin: string, playerName: string, answerIdx: number, timeSpent: number) => {
-    return fetchGas(apiUrl, { 
-      action: 'submitAnswer', 
-      pin, 
-      nome: playerName, 
-      respostaIdx: answerIdx, 
-      tempoGasto: timeSpent 
-    });
+    return fetchGas(apiUrl, { action: 'submitAnswer', pin, nome: playerName, respostaIdx: answerIdx, tempoGasto: timeSpent });
   },
 
   nextGameState: async (apiUrl: string, pin: string, hostId: string) => {

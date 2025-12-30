@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
@@ -6,10 +7,11 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { GameSettings } from '../types/game';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../services/gameService';
+import { Tag } from '../components/ui/Tag';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { apiUrl, setApiUrl, spreadsheetUrl, setSpreadsheetUrl, clearGame } = useGameStore();
+  const { apiUrl, setApiUrl, spreadsheetUrl, setSpreadsheetUrl, clearGame, isEnvUrl } = useGameStore();
   
   const [settings, setSettings] = useLocalStorageState<GameSettings>('eac_settings', {
     tempoPorPergunta: 20,
@@ -29,7 +31,7 @@ export const SettingsPage: React.FC = () => {
 
   const handleSave = () => {
     setSettings(localSettings);
-    setApiUrl(localApiUrl);
+    if (!isEnvUrl) setApiUrl(localApiUrl);
     setSpreadsheetUrl(localSpreadsheetUrl);
     alert("Configurações salvas!");
     navigate('/');
@@ -44,7 +46,8 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleValidateApi = async () => {
-    if (!localApiUrl) {
+    const urlToValidate = isEnvUrl ? apiUrl : localApiUrl;
+    if (!urlToValidate) {
       setValidationResult({ status: 'error', message: 'Por favor, insira a URL da API.' });
       return;
     }
@@ -53,7 +56,7 @@ export const SettingsPage: React.FC = () => {
     setValidationResult({ status: null, message: '' });
 
     try {
-      const result = await gameService.getQuizzes(localApiUrl);
+      const result = await gameService.getQuizzes(urlToValidate);
       setValidationResult({ 
         status: 'success', 
         message: `Conectado à planilha "${result.spreadsheetName}"! Encontramos ${result.quizzes.length} quizzes únicos na Coluna A.` 
@@ -216,7 +219,10 @@ function doGet(e) {
         
         <div className="space-y-8">
           <div className="space-y-4">
-            <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Conexão Google</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-blue-400 font-bold uppercase text-xs tracking-widest">Conexão Google</h3>
+              {isEnvUrl && <Tag color="green">Ambiente Ativo</Tag>}
+            </div>
             
             <p className="text-xs text-white/50 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
               O sistema agora busca os quizzes da aba <b>quiz_perguntas</b>, agrupando pelo nome na <b>Coluna A</b>.
@@ -224,22 +230,36 @@ function doGet(e) {
 
             <div>
               <label className="block text-sm font-medium mb-2 opacity-80">URL da API (Apps Script)</label>
-              <input 
-                type="text"
-                placeholder="https://script.google.com/macros/s/.../exec"
-                value={localApiUrl}
-                onChange={(e) => setLocalApiUrl(e.target.value)}
-                className={`w-full bg-white/10 border rounded-xl px-4 py-3 text-sm font-mono ${
-                  validationResult.status === 'success' ? 'border-green-500' : 
-                  validationResult.status === 'error' ? 'border-red-500' : 'border-white/20'
-                }`}
-              />
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  value={isEnvUrl ? apiUrl : localApiUrl}
+                  disabled={isEnvUrl}
+                  onChange={(e) => setLocalApiUrl(e.target.value)}
+                  className={`w-full bg-white/10 border rounded-xl px-4 py-3 text-sm font-mono ${
+                    isEnvUrl ? 'opacity-60 cursor-not-allowed border-blue-500/50' :
+                    validationResult.status === 'success' ? 'border-green-500' : 
+                    validationResult.status === 'error' ? 'border-red-500' : 'border-white/20'
+                  }`}
+                />
+                {isEnvUrl && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 font-bold bg-blue-500/20 px-2 py-1 rounded">
+                    VERCEL
+                  </div>
+                )}
+              </div>
+              {isEnvUrl && (
+                <p className="text-[10px] text-blue-300 mt-2 italic">
+                  * Esta URL está sendo definida via variável de ambiente (Vercel) e não pode ser editada manualmente.
+                </p>
+              )}
               
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button 
                   variant={validationResult.status === 'success' ? 'success' : 'secondary'}
                   onClick={handleValidateApi}
-                  disabled={isValidating || !localApiUrl}
+                  disabled={isValidating || (!localApiUrl && !apiUrl)}
                 >
                   {isValidating ? 'Validando...' : '🔍 Validar Conexão'}
                 </Button>
@@ -256,7 +276,7 @@ function doGet(e) {
                     <li>Substitua todo o código existente pelo código abaixo.</li>
                     <li>Clique em <b>Implantar &gt; Nova Implantação</b>.</li>
                     <li>Escolha <b>App da Web</b>. Acesso: <b>Qualquer Pessoa (Anyone)</b>.</li>
-                    <li>Copie a URL que termina em <b>/exec</b> e cole acima.</li>
+                    <li>Copie a URL que termina em <b>/exec</b> e cole acima ou no Vercel.</li>
                   </ol>
                   <textarea 
                     readOnly 

@@ -12,6 +12,7 @@ interface GameStore {
   apiUrl: string;
   spreadsheetUrl: string;
   hostId: string | null;
+  isEnvUrl: boolean;
   setRole: (role: 'host' | 'player' | null) => void;
   setPlayerIdentity: (identity: { id: string; name: string; avatar: string }) => void;
   setGamePin: (pin: string | null) => void;
@@ -33,8 +34,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [hostId, setHostId] = useState<string | null>(localStorage.getItem('eac_host_id'));
   
-  // Removido fallback VITE_GAS_API_URL para evitar confusão com dados antigos/mockados
+  // Verifica se existe variável de ambiente (Vercel)
+  const envUrl = (import.meta as any).env?.VITE_GAS_API_URL;
+
   const [apiUrl, setApiUrlState] = useState<string>(() => {
+    if (envUrl) return envUrl;
     return localStorage.getItem('eac_api_url') || '';
   });
 
@@ -43,6 +47,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const setApiUrl = (url: string) => {
+    if (envUrl) return; // Não permite alterar se vier do ambiente
     localStorage.setItem('eac_api_url', url);
     setApiUrlState(url);
   };
@@ -79,6 +84,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     apiUrl,
     spreadsheetUrl,
     hostId,
+    isEnvUrl: !!envUrl,
     setRole,
     setPlayerIdentity,
     setGamePin,

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gameService } from '../services/gameService';
@@ -10,7 +9,7 @@ import { Tag } from '../components/ui/Tag';
 
 export const HostQuizSelectPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setRole, setGamePin, apiUrl, spreadsheetUrl, setHostId } = useGameStore();
+  const { setRole, setGamePin, apiUrl, setHostId } = useGameStore();
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [spreadsheetName, setSpreadsheetName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -27,11 +26,13 @@ export const HostQuizSelectPage: React.FC = () => {
     setError('');
     
     try {
-      // O app agora busca diretamente da sua API. Se a lista estiver errada, 
-      // verifique a URL da API no menu de configurações.
       const result = await gameService.getQuizzes(apiUrl);
-      setQuizzes(result.quizzes);
-      setSpreadsheetName(result.spreadsheetName);
+      if (result.quizzes) {
+        setQuizzes(result.quizzes);
+        setSpreadsheetName(result.spreadsheetName);
+      } else {
+        setError('Não foi possível carregar a lista de quizzes. Verifique se a aba quiz_perguntas existe.');
+      }
     } catch (err: any) {
       setError('Erro de Conexão: ' + err.message);
     } finally {
@@ -91,7 +92,7 @@ export const HostQuizSelectPage: React.FC = () => {
       {loading ? (
         <div className="flex flex-col items-center justify-center p-20 gap-4 glass rounded-3xl">
           <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-          <p className="text-white/40 font-medium">Consultando sua planilha em tempo real...</p>
+          <p className="text-white/40 font-medium">Consultando Coluna A da aba quiz_perguntas...</p>
         </div>
       ) : error ? (
         <Card className="text-center p-12 border-red-500/50">
@@ -99,17 +100,17 @@ export const HostQuizSelectPage: React.FC = () => {
           <p className="text-red-400 mb-6 font-medium">{error}</p>
           <div className="flex justify-center gap-4">
             <Button onClick={loadQuizzes}>Tentar Novamente</Button>
-            <Button variant="secondary" onClick={() => navigate('/settings')}>Corrigir URL da API</Button>
+            <Button variant="secondary" onClick={() => navigate('/settings')}>Corrigir Script</Button>
           </div>
         </Card>
       ) : quizzes.length === 0 ? (
         <Card className="text-center p-16">
           <div className="text-5xl mb-6">📂</div>
-          <h3 className="text-xl font-bold mb-2">Sua Planilha está vazia?</h3>
+          <h3 className="text-xl font-bold mb-2">Nenhum Quiz Encontrado</h3>
           <p className="text-white/60 mb-8 max-w-sm mx-auto">
-            Conectamos à planilha <b>"{spreadsheetName}"</b>, mas não encontramos abas com conteúdo. Certifique-se de que as abas possuem dados.
+            Conectamos à planilha <b>"{spreadsheetName}"</b>, mas a aba <b>quiz_perguntas</b> parece estar vazia na Coluna A.
           </p>
-          <Button variant="secondary" onClick={() => navigate('/settings')}>Ver Instruções</Button>
+          <Button variant="secondary" onClick={loadQuizzes}>Atualizar Lista</Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -119,25 +120,17 @@ export const HostQuizSelectPage: React.FC = () => {
                 <div className="bg-blue-500/20 p-3 rounded-xl">
                   <span className="text-2xl">📝</span>
                 </div>
-                <Tag color="blue">Ativo</Tag>
+                <Tag color="blue">Quiz Disponível</Tag>
               </div>
               <h3 className="text-xl font-bold mb-4 group-hover:text-blue-400 transition-colors uppercase tracking-tight">{quiz.nome}</h3>
               <p className="text-white/50 mb-8 flex-grow text-sm leading-relaxed">
-                Clique para abrir esta aba e gerar um novo código PIN para os jogadores.
+                Este quiz foi extraído da sua planilha. Clique abaixo para iniciar uma sala.
               </p>
               <Button fullWidth onClick={() => handleSelect(quiz.id)}>
                 Iniciar Sala 🚀
               </Button>
             </Card>
           ))}
-        </div>
-      )}
-
-      {apiUrl && (
-        <div className="mt-12 pt-6 border-t border-white/5">
-          <p className="text-[10px] font-mono text-white/10 break-all text-center">
-            Endpoint Ativo: {apiUrl}
-          </p>
         </div>
       )}
     </div>

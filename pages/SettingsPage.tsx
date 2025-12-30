@@ -56,7 +56,7 @@ export const SettingsPage: React.FC = () => {
       const result = await gameService.getQuizzes(localApiUrl);
       setValidationResult({ 
         status: 'success', 
-        message: `Conectado à planilha "${result.spreadsheetName}"! Encontramos ${result.quizzes.length} quizzes dentro da aba 'quiz_perguntas'.` 
+        message: `Conectado à planilha "${result.spreadsheetName}"! Encontramos ${result.quizzes.length} quizzes únicos na Coluna A.` 
       });
     } catch (error: any) {
       setValidationResult({ 
@@ -68,9 +68,9 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  // CÓDIGO DO BACKEND ATUALIZADO PARA LER DA ABA 'quiz_perguntas'
   const fullGasCode = `/**
- * BACKEND EAC QUIZ - VERSÃO INTEGRADA (quiz_perguntas)
+ * BACKEND EAC QUIZ - VERSÃO FINAL (quiz_perguntas)
+ * Copie este código e cole no seu Apps Script
  */
 function doGet(e) {
   const params = e.parameter;
@@ -86,23 +86,15 @@ function doGet(e) {
     if (!sheet) throw new Error("Aba '" + QUIZ_SHEET_NAME + "' não encontrada na planilha.");
 
     if (action === 'getQuizzes') {
-      const data = sheet.getDataRange().getValues();
-      const quizzesSet = new Set();
-      
-      // Começa da linha 2 (índice 1) para ignorar cabeçalho
-      for (let i = 1; i < data.length; i++) {
-        const quizName = data[i][0]; // Coluna A
-        if (quizName && quizName.toString().trim()) {
-          quizzesSet.add(quizName.toString().trim());
-        }
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) {
+        response = { status: 'success', quizzes: [], spreadsheetName: ss.getName() };
+      } else {
+        const data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        const uniqueNames = [...new Set(data.flat().map(n => n ? n.toString().trim() : "").filter(Boolean))];
+        const quizzes = uniqueNames.map(name => ({ id: name, nome: name }));
+        response = { status: 'success', quizzes: quizzes, spreadsheetName: ss.getName() };
       }
-      
-      const quizzes = Array.from(quizzesSet).map(name => ({ id: name, nome: name }));
-      response = { 
-        status: 'success', 
-        quizzes: quizzes, 
-        spreadsheetName: ss.getName() 
-      };
     }
 
     if (action === 'createGameSession') {
@@ -113,9 +105,8 @@ function doGet(e) {
       const questions = data.slice(1)
         .filter(row => row[0] && row[0].toString().trim() === targetQuizId)
         .map((row, i) => {
-          // Mapeamento de Letra para Índice (A=0, B=1, C=2, D=3)
           const letraCorreta = (row[7] || "").toString().trim().toUpperCase();
-          const corretaIdx = letraCorreta.charCodeAt(0) - 65; 
+          const corretaIdx = letraCorreta.charCodeAt(0) - 65; // A=0, B=1...
 
           return {
             id: row[1] || ('q' + i),
@@ -149,7 +140,6 @@ function doGet(e) {
       response = { status: 'success', pin: pin, hostId: hostId };
     }
 
-    // Ações de gerenciamento de estado (iguais, mas salvando no PropertiesService)
     if (action === 'getGameState') {
       const pin = params.pin;
       const raw = props.getProperty('game_' + pin);
@@ -187,7 +177,7 @@ function doGet(e) {
         state.players[params.nome].correctCount += 1;
       }
       state.answers[params.nome] = { respostaIdx: parseInt(params.respostaIdx), points: points };
-      props.setProperty('game_' + pin, JSON.stringify(state));
+      props.setProperty('game_' + params.pin, JSON.stringify(state));
       response = { status: 'success' };
     }
 
@@ -231,17 +221,6 @@ function doGet(e) {
             <p className="text-xs text-white/50 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
               O sistema agora busca os quizzes da aba <b>quiz_perguntas</b>, agrupando pelo nome na <b>Coluna A</b>.
             </p>
-
-            <div>
-              <label className="block text-sm font-medium mb-2 opacity-80">Link da sua Planilha (Visual)</label>
-              <input 
-                type="text"
-                value={localSpreadsheetUrl}
-                onChange={(e) => setLocalSpreadsheetUrl(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm"
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-              />
-            </div>
 
             <div>
               <label className="block text-sm font-medium mb-2 opacity-80">URL da API (Apps Script)</label>

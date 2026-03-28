@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useGameStore } from '../store/gameStore';
+import { APP_LOGO_FALLBACK_URL, APP_LOGO_URL } from '../utils/branding';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,11 +29,11 @@ export const HomePage: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-[70vh] animate-in fade-in duration-700">
       <div className="mb-8 text-center animate-bounce">
          <img 
-          src="https://i.imgur.com/c5XQ7TW.png" 
+          src={APP_LOGO_URL}
           alt="EAC Logo" 
           className="w-32 h-32 object-contain rounded-2xl shadow-2xl bg-blue-500/10 p-2"
           onError={(e) => {
-            (e.target as any).src = 'https://i.imgur.com/Uo2eG7x.png'; 
+            (e.target as any).src = APP_LOGO_FALLBACK_URL;
           }}
         />
       </div>

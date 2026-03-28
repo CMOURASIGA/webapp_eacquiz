@@ -3,6 +3,7 @@ import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { Tag } from '../ui/Tag';
 import { useNavigate } from 'react-router-dom';
+import { APP_LOGO_FALLBACK_URL, APP_LOGO_URL } from '../../utils/branding';
 
 export const Header: React.FC = () => {
   const { mode, role, playerName, playerAvatar, gamePin } = useGameStore();
@@ -15,12 +16,11 @@ export const Header: React.FC = () => {
         onClick={() => navigate('/')}
       >
         <img 
-          src="https://i.imgur.com/c5XQ7TW.png" 
+          src={APP_LOGO_URL}
           alt="EAC Logo" 
           className="w-10 h-10 object-contain rounded"
           onError={(e) => {
-            // Fallback se o link específico falhar
-            (e.target as any).src = 'https://i.imgur.com/Uo2eG7x.png'; 
+            (e.target as any).src = APP_LOGO_FALLBACK_URL;
           }}
         />
         <h1 className="text-xl font-bold tracking-tight">EAC <span className="text-blue-400">Quiz</span></h1>

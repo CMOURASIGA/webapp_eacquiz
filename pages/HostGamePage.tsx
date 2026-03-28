@@ -12,6 +12,7 @@ import { QuestionOptionsGrid } from '../components/game/QuestionOptionsGrid';
 import { LeaderboardTable } from '../components/game/LeaderboardTable';
 import { Podium } from '../components/game/Podium';
 import { GameTimer } from '../components/game/GameTimer';
+import { APP_BRAND_TEXT_HIGHLIGHT, APP_BRAND_TEXT_PRIMARY } from '../utils/branding';
 
 export const HostGamePage: React.FC = () => {
   const { pin } = useParams<{ pin: string }>();
@@ -244,7 +245,9 @@ export const HostGamePage: React.FC = () => {
       {status === 'LEADERBOARD' && (
         <div className="animate-in slide-in-from-right duration-500 max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
-            <h2 className="text-4xl font-black italic tracking-tighter uppercase">Classificação <span className="text-blue-400">EAC</span></h2>
+            <h2 className="text-4xl font-black italic tracking-tighter uppercase">
+              Classificação {APP_BRAND_TEXT_PRIMARY} <span className="text-blue-400">{APP_BRAND_TEXT_HIGHLIGHT}</span>
+            </h2>
             
             {modoAutomatico && (
               <div className="flex items-center gap-4 glass-heavy px-6 py-3 rounded-2xl border border-blue-500/30">
@@ -270,7 +273,9 @@ export const HostGamePage: React.FC = () => {
       {status === 'FINAL' && (
         <div className="animate-in slide-in-from-bottom duration-1000">
           <div className="text-center mb-16">
-            <h2 className="text-7xl font-black mb-4 tracking-tighter uppercase italic">Vencedores <span className="text-blue-400">EAC</span></h2>
+            <h2 className="text-7xl font-black mb-4 tracking-tighter uppercase italic">
+              Vencedores {APP_BRAND_TEXT_PRIMARY} <span className="text-blue-400">{APP_BRAND_TEXT_HIGHLIGHT}</span>
+            </h2>
             <div className="w-32 h-2 bg-blue-500 mx-auto rounded-full shadow-lg shadow-blue-500/50"></div>
           </div>
           

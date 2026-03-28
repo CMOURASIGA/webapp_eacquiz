@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useGameStore } from '../store/gameStore';
-import { APP_LOGO_FALLBACK_URL, APP_LOGO_URL } from '../utils/branding';
+import { APP_BRAND_TEXT_HIGHLIGHT, APP_BRAND_TEXT_PRIMARY, APP_BRAND_TITLE, APP_LOGO_FALLBACK_URL, APP_LOGO_URL } from '../utils/branding';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ export const HomePage: React.FC = () => {
       <div className="mb-8 text-center animate-bounce">
          <img 
           src={APP_LOGO_URL}
-          alt="EAC Logo" 
+          alt={`${APP_BRAND_TITLE} Logo`}
           className="w-32 h-32 object-contain rounded-2xl shadow-2xl bg-blue-500/10 p-2"
           onError={(e) => {
             (e.target as any).src = APP_LOGO_FALLBACK_URL;
@@ -39,7 +39,9 @@ export const HomePage: React.FC = () => {
       </div>
       
       <Card className="w-full max-w-md text-center">
-        <h1 className="text-3xl font-bold mb-2">EAC Quiz</h1>
+        <h1 className="text-3xl font-bold mb-2">
+          {APP_BRAND_TEXT_PRIMARY} <span className="text-blue-400">{APP_BRAND_TEXT_HIGHLIGHT}</span>
+        </h1>
         <p className="text-white/60 mb-8">Escolha como deseja jogar.</p>
         
         <div className="space-y-4">

@@ -7,6 +7,7 @@ import { AvatarPicker } from '../components/game/AvatarPicker';
 import { gameService } from '../services/gameService';
 import { useGameStore } from '../store/gameStore';
 import { isValidPin, isValidName } from '../utils/validation';
+import { APP_BRAND_TEXT_HIGHLIGHT, APP_BRAND_TEXT_PRIMARY } from '../utils/branding';
 
 export const PlayerJoinPage: React.FC = () => {
   const navigate = useNavigate();
@@ -52,7 +53,9 @@ export const PlayerJoinPage: React.FC = () => {
   return (
     <div className="max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card>
-        <h2 className="text-2xl font-bold mb-6 text-center">Entrar no EAC Quiz</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Entrar no {APP_BRAND_TEXT_PRIMARY} <span className="text-blue-400">{APP_BRAND_TEXT_HIGHLIGHT}</span>
+        </h2>
         
         <form onSubmit={handleJoin} className="space-y-6">
           <div>

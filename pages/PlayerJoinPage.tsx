@@ -10,10 +10,10 @@ import { isValidPin, isValidName } from '../utils/validation';
 
 export const PlayerJoinPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setRole, setPlayerIdentity, setGamePin, apiUrl } = useGameStore();
+  const { setRole, setPlayerIdentity, setGamePin, apiUrl, userName, setUserIdentityByName } = useGameStore();
   
   const [pin, setPin] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(userName);
   const [avatar, setAvatar] = useState('😎');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,21 +21,23 @@ export const PlayerJoinPage: React.FC = () => {
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const normalizedName = name.trim();
 
     if (!apiUrl) return setError('URL da API não configurada. Vá em Configurações.');
     if (!isValidPin(pin)) return setError('PIN deve ter 4 dígitos');
-    if (!isValidName(name)) return setError('Nome deve ter entre 2 e 15 caracteres');
+    if (!isValidName(normalizedName)) return setError('Nome deve ter entre 2 e 15 caracteres');
 
     setLoading(true);
     try {
-      const { gameState, playerId } = await gameService.joinGame(apiUrl, pin, name, avatar);
+      const resolvedUserId = setUserIdentityByName(normalizedName);
+      const { playerId } = await gameService.joinGame(apiUrl, pin, normalizedName, avatar, resolvedUserId);
       
       setRole('player');
       setGamePin(pin);
-      setPlayerIdentity({ id: playerId, name, avatar });
+      setPlayerIdentity({ id: playerId, name: normalizedName, avatar });
 
       localStorage.setItem('eac_player_id', playerId);
-      localStorage.setItem('eac_player_name', name);
+      localStorage.setItem('eac_player_name', normalizedName);
       localStorage.setItem('eac_player_avatar', avatar);
       localStorage.setItem('eac_last_pin', pin);
 

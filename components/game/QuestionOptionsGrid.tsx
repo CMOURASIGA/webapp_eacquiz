@@ -37,7 +37,7 @@ export const QuestionOptionsGrid: React.FC<QuestionOptionsGridProps> = ({
           else if (isSelected) statusClasses = "opacity-50 ring-4 ring-red-500";
           else statusClasses = "opacity-30 grayscale";
         } else if (isSelected) {
-          statusClasses = "ring-4 ring-white scale-105 shadow-2xl";
+          statusClasses = "ring-4 ring-white scale-105 shadow-2xl border-2 border-white/80";
         }
 
         return (
@@ -59,6 +59,9 @@ export const QuestionOptionsGrid: React.FC<QuestionOptionsGridProps> = ({
             </span>
             {opt}
             {reveal && isCorrect && (
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-3xl">✅</span>
+            )}
+            {!reveal && isSelected && (
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-3xl">✅</span>
             )}
           </button>

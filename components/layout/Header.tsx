@@ -5,7 +5,7 @@ import { Tag } from '../ui/Tag';
 import { useNavigate } from 'react-router-dom';
 
 export const Header: React.FC = () => {
-  const { role, playerName, playerAvatar, gamePin } = useGameStore();
+  const { mode, role, playerName, playerAvatar, gamePin } = useGameStore();
   const navigate = useNavigate();
 
   return (
@@ -27,18 +27,26 @@ export const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-3">
-        {gamePin && (
-          <Tag color="amber">PIN: {gamePin}</Tag>
-        )}
-        
-        {role === 'host' && (
-          <Tag color="white">👑 Anfitrião</Tag>
+        {mode === 'live' && (
+          <>
+            {gamePin && (
+              <Tag color="amber">PIN: {gamePin}</Tag>
+            )}
+            
+            {role === 'host' && (
+              <Tag color="white">👑 Anfitrião</Tag>
+            )}
+
+            {role === 'player' && playerName && (
+              <Tag color="blue">
+                <span className="mr-1">{playerAvatar}</span> {playerName}
+              </Tag>
+            )}
+          </>
         )}
 
-        {role === 'player' && playerName && (
-          <Tag color="blue">
-            <span className="mr-1">{playerAvatar}</span> {playerName}
-          </Tag>
+        {mode === 'async' && (
+          <Tag color="green">⚡ Quiz Async</Tag>
         )}
       </div>
     </header>

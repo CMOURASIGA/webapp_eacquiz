@@ -20,6 +20,8 @@ export const PlayerGamePage: React.FC = () => {
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const currentStatus = gameState?.status;
 
@@ -27,6 +29,8 @@ export const PlayerGamePage: React.FC = () => {
     if (currentStatus === 'QUESTION') {
       setSelectedIdx(null);
       setHasAnswered(false);
+      setIsSubmittingAnswer(false);
+      setSubmitError('');
     }
   }, [currentStatus]);
 
@@ -40,16 +44,22 @@ export const PlayerGamePage: React.FC = () => {
   }
 
   const handleSelectAnswer = async (idx: number) => {
-    if (hasAnswered || !playerName) return;
+    if (hasAnswered || isSubmittingAnswer || !playerName) return;
     
     setSelectedIdx(idx);
-    setHasAnswered(true);
+    setSubmitError('');
+    setIsSubmittingAnswer(true);
     
     const timeSpent = Date.now() - gameState.questionStartTime;
     try {
       await gameService.submitAnswer(apiUrl, pin!, playerName, idx, timeSpent);
+      setHasAnswered(true);
     } catch (e) {
       console.error("Erro ao enviar resposta", e);
+      setSelectedIdx(null);
+      setSubmitError('Não foi possível registrar sua resposta. Tente novamente.');
+    } finally {
+      setIsSubmittingAnswer(false);
     }
   };
 
@@ -99,16 +109,30 @@ export const PlayerGamePage: React.FC = () => {
              ></div>
            </div>
 
-           {!hasAnswered ? (
-             <QuestionOptionsGrid 
-               options={gameState.perguntas[gameState.currentQuestionIndex].opcoes}
-               onSelect={handleSelectAnswer}
-             />
-           ) : (
-             <Card className="text-center p-12">
-               <div className="text-5xl mb-4">⌛</div>
-               <h3 className="text-2xl font-bold mb-2">Resposta Enviada!</h3>
+           <QuestionOptionsGrid 
+             options={gameState.perguntas[gameState.currentQuestionIndex].opcoes}
+             onSelect={handleSelectAnswer}
+             selectedIndex={selectedIdx}
+             disabled={hasAnswered || isSubmittingAnswer}
+           />
+
+           {isSubmittingAnswer && (
+             <Card className="text-center p-6 mt-4 border-blue-400/30">
+               <h3 className="text-xl font-bold mb-2">Registrando resposta...</h3>
+               <p className="text-white/60">Aguarde a confirmação.</p>
+             </Card>
+           )}
+
+           {hasAnswered && !isSubmittingAnswer && (
+             <Card className="text-center p-6 mt-4 border-green-400/30">
+               <h3 className="text-xl font-bold mb-2 text-green-300">Resposta registrada com sucesso.</h3>
                <p className="text-white/60">Aguardando os outros jogadores...</p>
+             </Card>
+           )}
+
+           {submitError && (
+             <Card className="text-center p-4 mt-4 border-red-500/40">
+               <p className="text-red-300 text-sm">{submitError}</p>
              </Card>
            )}
         </div>

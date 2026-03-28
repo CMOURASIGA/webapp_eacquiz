@@ -7,16 +7,18 @@ import { useGameStore } from '../store/gameStore';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { clearGame, apiUrl } = useGameStore();
+  const { clearGame, apiUrl, setMode } = useGameStore();
 
-  const handleJoin = () => {
+  const handleLiveQuiz = () => {
     clearGame();
+    setMode('live');
     navigate('/player/join');
   };
 
-  const handleCreate = () => {
+  const handleMonthlyQuiz = () => {
     clearGame();
-    navigate('/host/quizzes');
+    setMode('async');
+    navigate('/quiz');
   };
 
   const resumePin = localStorage.getItem('eac_last_pin');
@@ -37,17 +39,20 @@ export const HomePage: React.FC = () => {
       
       <Card className="w-full max-w-md text-center">
         <h1 className="text-3xl font-bold mb-2">EAC Quiz</h1>
-        <p className="text-white/60 mb-8">A plataforma de aprendizado gamificado em tempo real integrada com Google Sheets.</p>
+        <p className="text-white/60 mb-8">Escolha como deseja jogar.</p>
         
         <div className="space-y-4">
-          <Button fullWidth size="lg" onClick={handleJoin}>
-            🙋‍♂️ Entrar no Jogo
+          <Button fullWidth size="lg" onClick={handleMonthlyQuiz}>
+            📅 Quiz Mensal
           </Button>
-          <Button variant="secondary" fullWidth size="lg" onClick={handleCreate}>
-            👑 Criar Sala
+          <Button variant="secondary" fullWidth size="lg" onClick={() => navigate('/ranking')}>
+            🏆 Ranking Mensal
           </Button>
-          <Button variant="outline" fullWidth onClick={() => navigate('/settings')}>
-            ⚙️ Configurações
+          <Button variant="secondary" fullWidth size="lg" onClick={handleLiveQuiz}>
+            ⚡ Quiz Live
+          </Button>
+          <Button variant="outline" fullWidth onClick={() => navigate('/admin/login')}>
+            🔐 Acesso Admin
           </Button>
         </div>
 
@@ -62,7 +67,14 @@ export const HomePage: React.FC = () => {
         {hasResumableGame && (
           <div className="mt-8 pt-8 border-t border-white/10">
             <p className="text-sm opacity-60 mb-3">Vimos que você jogou recentemente:</p>
-            <Button variant="secondary" size="sm" onClick={() => navigate(`/player/game/${resumePin}`)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setMode('live');
+                navigate(`/player/game/${resumePin}`);
+              }}
+            >
               Retomar Jogo (PIN {resumePin})
             </Button>
           </div>

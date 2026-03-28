@@ -1,7 +1,7 @@
 
 import { GameState, GameSettings, QuizSummary } from '../types/game';
 
-async function fetchGas(apiUrl: string, params: Record<string, any>) {
+export async function fetchGas(apiUrl: string, params: Record<string, any>) {
   if (!apiUrl) throw new Error("URL da API não configurada.");
   
   try {
@@ -30,6 +30,32 @@ async function fetchGas(apiUrl: string, params: Record<string, any>) {
   }
 }
 
+export async function postGas(apiUrl: string, payload: Record<string, any>) {
+  if (!apiUrl) throw new Error("URL da API não configurada.");
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+
+    const data = await response.json();
+    if (data.status === 'error') throw new Error(data.message || 'Erro na planilha.');
+
+    return data;
+  } catch (error: any) {
+    console.error("Erro API:", error);
+    throw error;
+  }
+}
+
 export const gameService = {
   getQuizzes: async (apiUrl: string): Promise<{ quizzes: QuizSummary[], spreadsheetName: string }> => {
     const data = await fetchGas(apiUrl, { action: 'getQuizzes' });
@@ -50,9 +76,12 @@ export const gameService = {
     return { pin: data.pin, hostId: data.hostId };
   },
 
-  joinGame: async (apiUrl: string, pin: string, playerName: string, avatar: string) => {
-    const data = await fetchGas(apiUrl, { action: 'joinGame', pin, nome: playerName, avatar });
-    return { gameState: data.gameState, playerId: data.playerId || playerName }; 
+  joinGame: async (apiUrl: string, pin: string, playerName: string, avatar: string, userId?: string) => {
+    const params: Record<string, any> = { action: 'joinGame', pin, nome: playerName, avatar };
+    if (userId) params.userId = userId;
+
+    const data = await fetchGas(apiUrl, params);
+    return { gameState: data.gameState, playerId: data.playerId || userId || playerName }; 
   },
 
   getGameState: async (apiUrl: string, pin: string): Promise<GameState | null> => {

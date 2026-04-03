@@ -10,7 +10,7 @@ import { GameTimer } from '../components/game/GameTimer';
 import { useQuestionTimer } from '../hooks/useQuestionTimer';
 import { quizService } from '../services/quizService';
 import { useGameStore } from '../store/gameStore';
-import { AsyncQuiz } from '../types/asyncQuiz';
+import { AsyncPrize, AsyncQuiz } from '../types/asyncQuiz';
 import { getOrCreateDeviceId } from '../utils/deviceIdentity';
 
 const ASYNC_PROGRESS_KEY = 'eac_async_progress';
@@ -94,6 +94,7 @@ export const AsyncQuizPage: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [displayName, setDisplayName] = useState(userName);
   const [allowedNames, setAllowedNames] = useState<string[]>([]);
+  const [monthlyPrize, setMonthlyPrize] = useState<AsyncPrize | null>(null);
   const [started, setStarted] = useState(false);
   const [formError, setFormError] = useState('');
   const [startLoading, setStartLoading] = useState(false);
@@ -115,11 +116,13 @@ export const AsyncQuizPage: React.FC = () => {
     setLoadError('');
 
     try {
-      const [activeQuiz, participants] = await Promise.all([
+      const [activeQuiz, participants, prize] = await Promise.all([
         quizService.getActiveAsyncQuiz(apiUrl),
         quizService.getAllowedParticipants(apiUrl),
+        quizService.getAsyncPrize(apiUrl),
       ]);
       setAllowedNames(participants);
+      setMonthlyPrize(prize);
 
       if (!participants.length) {
         setQuiz(null);
@@ -157,6 +160,7 @@ export const AsyncQuizPage: React.FC = () => {
       setQuiz(null);
       setProgress(null);
       setAllowedNames([]);
+      setMonthlyPrize(null);
       setStarted(false);
       setQuestionStartTime(0);
       setLoadError(err?.message || 'Falha ao carregar quiz ativo.');
@@ -470,6 +474,38 @@ export const AsyncQuizPage: React.FC = () => {
               <p>Perguntas: {quiz.perguntas.length}</p>
               <p>Ranking: separado do modo ao vivo</p>
             </div>
+
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">Prêmio do Mês</p>
+                {monthlyPrize?.month && <Tag color="green">{monthlyPrize.month}</Tag>}
+              </div>
+
+              {monthlyPrize?.imageUrl ? (
+                <div className="grid grid-cols-1 sm:grid-cols-[120px,1fr] gap-3 items-center">
+                  <img
+                    src={monthlyPrize.imageUrl}
+                    alt={monthlyPrize.title || 'Prêmio do mês'}
+                    className="w-full h-24 object-contain rounded-lg bg-black/20"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-white">{monthlyPrize.title || 'Prêmio mensal'}</p>
+                    {monthlyPrize.sourceUrl && (
+                      <a
+                        className="text-blue-300 text-xs underline break-all"
+                        href={monthlyPrize.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ver fonte da imagem
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-white/60">O prêmio deste mês ainda não foi divulgado.</p>
+              )}
+            </Card>
 
             {formError && (
               <p className="text-red-400 text-sm text-center font-medium bg-red-500/10 p-2 rounded-lg">

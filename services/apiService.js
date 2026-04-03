@@ -74,6 +74,10 @@ export const getAsyncEligibility = async (apiUrl, userId, quizId, month) => {
   return getRequest(apiUrl, params);
 };
 
+export const getAllowedParticipants = async (apiUrl) => {
+  return getRequest(apiUrl, { action: 'getAllowedParticipants' });
+};
+
 export const getAsyncTokenStats = async (apiUrl, month, quizId) => {
   const params = { action: 'getAsyncTokenStats', month, quizId };
   return getRequest(apiUrl, params);

@@ -1,11 +1,12 @@
 
-import { getQuiz, getRanking, getResultsPanel as getResultsPanelApi, getAsyncPrize as getAsyncPrizeApi, getAsyncEligibility as getAsyncEligibilityApi, getAsyncTokenStats as getAsyncTokenStatsApi, saveResult as saveResultApi, saveAsyncPrize as saveAsyncPrizeApi, generateAsyncTokens as generateAsyncTokensApi, claimAsyncToken as claimAsyncTokenApi } from './apiService.js';
+import { getQuiz, getRanking, getResultsPanel as getResultsPanelApi, getAsyncPrize as getAsyncPrizeApi, getAsyncEligibility as getAsyncEligibilityApi, getAllowedParticipants as getAllowedParticipantsApi, getAsyncTokenStats as getAsyncTokenStatsApi, saveResult as saveResultApi, saveAsyncPrize as saveAsyncPrizeApi, generateAsyncTokens as generateAsyncTokensApi, claimAsyncToken as claimAsyncTokenApi } from './apiService.js';
 import { AsyncPrize, AsyncQuestion, AsyncQuiz, AsyncQuizResult } from '../types/asyncQuiz';
 import { calculateScore } from '../utils/score';
 import { LeaderboardEntry } from '../types/game';
 
 const ASYNC_QUIZ_CACHE_KEY = 'eac_async_quiz_cache';
 const ASYNC_RANKING_CACHE_KEY = 'eac_async_ranking_cache';
+const ASYNC_ALLOWED_PARTICIPANTS_CACHE_KEY = 'eac_async_allowed_participants_cache';
 const PENDING_RESULTS_KEY = 'eac_async_pending_results';
 
 export interface ResultRow {
@@ -245,6 +246,22 @@ export const quizService = {
       reason: String(data.reason || ''),
       existingScore: typeof data.existingScore === 'number' ? data.existingScore : null,
     };
+  },
+
+  getAllowedParticipants: async (apiUrl: string): Promise<string[]> => {
+    try {
+      const data = await getAllowedParticipantsApi(apiUrl);
+      const participants = Array.isArray(data?.participants)
+        ? data.participants.map((name: any) => String(name || '').trim()).filter(Boolean)
+        : [];
+
+      writeCache(ASYNC_ALLOWED_PARTICIPANTS_CACHE_KEY, participants);
+      return participants;
+    } catch (error) {
+      const fallback = readCache<string[]>(ASYNC_ALLOWED_PARTICIPANTS_CACHE_KEY);
+      if (fallback && Array.isArray(fallback) && fallback.length > 0) return fallback;
+      throw error;
+    }
   },
 
   getAsyncTokenStats: async (apiUrl: string, payload: { month: string; quizId: string }): Promise<AsyncTokenStats> => {

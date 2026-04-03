@@ -35,6 +35,7 @@ export function getRanking(apiUrl: string, month?: string): Promise<any>;
 export function getResultsPanel(apiUrl: string, month?: string, limit?: number): Promise<any>;
 export function getAsyncPrize(apiUrl: string, month?: string): Promise<any>;
 export function getAsyncEligibility(apiUrl: string, userId: string, quizId: string, month?: string): Promise<any>;
+export function getAllowedParticipants(apiUrl: string): Promise<any>;
 export function getAsyncTokenStats(apiUrl: string, month: string, quizId: string): Promise<any>;
 export function saveResult(apiUrl: string, payload: SaveResultPayload): Promise<any>;
 export function saveAsyncPrize(apiUrl: string, payload: SaveAsyncPrizePayload): Promise<any>;

@@ -49,6 +49,99 @@ function isWithinDateRange_(targetDate, startDate, endDate) {
   return true;
 }
 
+const PARTICIPANTS_CACHE_KEY_ = 'allowed_participants_v1';
+const PARTICIPANTS_CACHE_TTL_SECONDS_ = 300;
+const PARTICIPANT_SOURCES_ = [
+  {
+    spreadsheetId: '1M5vsAANmeYk1pAgYjFfa3ycbnyWMGYb90pKZuR9zNo4',
+    sheetName: 'Base_Contatos',
+    columnIndex: 1,
+  },
+  {
+    spreadsheetId: '1ldHCdVQiOV8EU3aN9wTiqj6rje34tZpSvB1O-09HG0E',
+    sheetName: 'base de dados',
+    columnIndex: 2,
+  },
+];
+
+function stripAccents_(value) {
+  const text = (value || '').toString();
+  try {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  } catch (err) {
+    return text;
+  }
+}
+
+function normalizeParticipantName_(value) {
+  return (value || '')
+    .toString()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeParticipantKey_(value) {
+  const normalized = normalizeParticipantName_(value);
+  if (!normalized) return '';
+  return stripAccents_(normalized).toLowerCase();
+}
+
+function readParticipantNamesFromSource_(source) {
+  const externalSpreadsheet = SpreadsheetApp.openById(source.spreadsheetId);
+  const sheet = externalSpreadsheet.getSheetByName(source.sheetName);
+  if (!sheet) {
+    throw new Error("Aba '" + source.sheetName + "' não encontrada na planilha " + source.spreadsheetId + '.');
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 1) return [];
+
+  const values = sheet.getRange(1, source.columnIndex, lastRow, 1).getValues();
+  let names = values
+    .map((row) => normalizeParticipantName_(row[0]))
+    .filter(Boolean);
+
+  if (names.length > 0) {
+    const first = normalizeParticipantKey_(names[0]);
+    if (first === 'nome' || first === 'nomes') {
+      names = names.slice(1);
+    }
+  }
+
+  return names;
+}
+
+function getAllowedParticipants_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(PARTICIPANTS_CACHE_KEY_);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (err) {
+      // noop
+    }
+  }
+
+  const uniqueByKey = {};
+  PARTICIPANT_SOURCES_.forEach((source) => {
+    const names = readParticipantNamesFromSource_(source);
+    names.forEach((name) => {
+      const key = normalizeParticipantKey_(name);
+      if (key && !uniqueByKey[key]) {
+        uniqueByKey[key] = name;
+      }
+    });
+  });
+
+  const participants = Object.keys(uniqueByKey)
+    .map((key) => uniqueByKey[key])
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+
+  cache.put(PARTICIPANTS_CACHE_KEY_, JSON.stringify(participants), PARTICIPANTS_CACHE_TTL_SECONDS_);
+  return participants;
+}
+
 function getControlledQuizzes_(ss) {
   const QUIZZES_SHEET_NAME = 'QUIZZES';
   const quizzesSheet = ss.getSheetByName(QUIZZES_SHEET_NAME);
@@ -884,6 +977,16 @@ function doGet(e) {
           spreadsheetName: ss.getName()
         };
       }
+    }
+
+    if (action === 'getAllowedParticipants') {
+      const participants = getAllowedParticipants_();
+      response = {
+        status: 'success',
+        participants: participants,
+        total: participants.length,
+        spreadsheetName: ss.getName(),
+      };
     }
 
     if (action === 'getMonthlyRanking') {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -11,12 +11,12 @@ import { useQuestionTimer } from '../hooks/useQuestionTimer';
 import { quizService } from '../services/quizService';
 import { useGameStore } from '../store/gameStore';
 import { AsyncQuiz } from '../types/asyncQuiz';
-import { isValidName } from '../utils/validation';
 import { getOrCreateDeviceId } from '../utils/deviceIdentity';
 
 const ASYNC_PROGRESS_KEY = 'eac_async_progress';
 const ASYNC_RESULT_KEY = 'eac_async_result';
 const ASYNC_QUESTION_DURATION_SECONDS = 30;
+const PARTICIPANT_REGISTRATION_URL = 'https://forms.gle/t9HuaTRoBH8ssAez9';
 
 interface AsyncProgress {
   quizId: string;
@@ -39,6 +39,13 @@ const buildInitialProgress = (size: number, quizId: string): AsyncProgress => ({
   tempos: Array(size).fill(1),
   startedAt: Date.now(),
 });
+
+const normalizeParticipantKey = (value: string) =>
+  (typeof value.normalize === 'function' ? value.normalize('NFD') : value)
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const parseProgress = (raw: string | null, size: number, quizId: string): AsyncProgress => {
   if (!raw) return buildInitialProgress(size, quizId);
@@ -83,8 +90,10 @@ export const AsyncQuizPage: React.FC = () => {
 
   const [quiz, setQuiz] = useState<AsyncQuiz | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState(true);
+  const [loadingNames, setLoadingNames] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [displayName, setDisplayName] = useState(userName);
+  const [allowedNames, setAllowedNames] = useState<string[]>([]);
   const [started, setStarted] = useState(false);
   const [formError, setFormError] = useState('');
   const [startLoading, setStartLoading] = useState(false);
@@ -97,14 +106,30 @@ export const AsyncQuizPage: React.FC = () => {
     if (!apiUrl) {
       setLoadError('URL da API não configurada. Vá em Configurações.');
       setLoadingQuiz(false);
+      setLoadingNames(false);
       return;
     }
 
     setLoadingQuiz(true);
+    setLoadingNames(true);
     setLoadError('');
 
     try {
-      const activeQuiz = await quizService.getActiveAsyncQuiz(apiUrl);
+      const [activeQuiz, participants] = await Promise.all([
+        quizService.getActiveAsyncQuiz(apiUrl),
+        quizService.getAllowedParticipants(apiUrl),
+      ]);
+      setAllowedNames(participants);
+
+      if (!participants.length) {
+        setQuiz(null);
+        setProgress(null);
+        setStarted(false);
+        setQuestionStartTime(0);
+        setLoadError('A lista de nomes autorizados está vazia. Verifique as planilhas de encontristas/encontreiros.');
+        return;
+      }
+
       if (!activeQuiz) {
         setQuiz(null);
         setProgress(null);
@@ -131,11 +156,13 @@ export const AsyncQuizPage: React.FC = () => {
     } catch (err: any) {
       setQuiz(null);
       setProgress(null);
+      setAllowedNames([]);
       setStarted(false);
       setQuestionStartTime(0);
       setLoadError(err?.message || 'Falha ao carregar quiz ativo.');
     } finally {
       setLoadingQuiz(false);
+      setLoadingNames(false);
     }
   }, [apiUrl]);
 
@@ -155,6 +182,17 @@ export const AsyncQuizPage: React.FC = () => {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  const allowedNamesByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    allowedNames.forEach((name) => {
+      const key = normalizeParticipantKey(name);
+      if (key && !map.has(key)) {
+        map.set(key, name);
+      }
+    });
+    return map;
+  }, [allowedNames]);
 
   const submitAsyncAnswer = useCallback(async (answerIdx: number) => {
     if (!quiz || !progress || isSubmittingAnswer) return;
@@ -261,19 +299,31 @@ export const AsyncQuizPage: React.FC = () => {
   const handleStart = async () => {
     if (!quiz || !progress) return;
 
-    const normalizedName = displayName.trim();
-    if (!isValidName(normalizedName)) {
-      setFormError('Nome deve ter entre 2 e 15 caracteres');
+    if (loadingNames || allowedNames.length === 0) {
+      setFormError('A lista de nomes ainda não foi carregada. Tente novamente em alguns segundos.');
+      return;
+    }
+
+    const normalizedKey = normalizeParticipantKey(displayName);
+    if (!normalizedKey) {
+      setFormError('Pesquise e selecione seu nome na lista para iniciar.');
+      return;
+    }
+
+    const matchedName = allowedNamesByKey.get(normalizedKey);
+    if (!matchedName) {
+      setFormError('Nome não encontrado na lista. Use o link de cadastro e tente novamente.');
       return;
     }
 
     setFormError('');
     setStartLoading(true);
     try {
-      const resolvedUserId = setUserIdentityByName(normalizedName);
+      setDisplayName(matchedName);
+      const resolvedUserId = setUserIdentityByName(matchedName);
       const claim = await quizService.claimAsyncToken(apiUrl, {
         userId: resolvedUserId,
-        nome: normalizedName,
+        nome: matchedName,
         quizId: quiz.id,
         deviceId,
       });
@@ -382,11 +432,38 @@ export const AsyncQuizPage: React.FC = () => {
               <label className="block text-sm font-medium mb-2">Seu Nome</label>
               <input
                 type="text"
+                list="allowed-participants-list"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Como quer ser chamado?"
+                placeholder={loadingNames ? 'Carregando nomes...' : 'Digite para pesquisar seu nome'}
+                disabled={loadingNames}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none"
               />
+              <datalist id="allowed-participants-list">
+                {allowedNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              <p className="text-xs text-white/55 mt-2">
+                Pesquise e selecione exatamente o seu nome para validar sua participação.
+              </p>
+              {!loadingNames && (
+                <p className="text-[11px] text-white/40 mt-1">
+                  {allowedNames.length} nomes disponíveis.
+                </p>
+              )}
+              <p className="text-xs text-white/55 mt-2">
+                Não encontrou seu nome?{' '}
+                <a
+                  href={PARTICIPANT_REGISTRATION_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-300 hover:text-blue-200 underline underline-offset-2"
+                >
+                  Faça seu cadastro aqui
+                </a>
+                {' '}e volte para responder o quiz.
+              </p>
             </div>
 
             <div className="text-sm text-white/60">
@@ -404,7 +481,7 @@ export const AsyncQuizPage: React.FC = () => {
               <Button variant="secondary" fullWidth onClick={() => navigate('/')}>
                 Voltar
               </Button>
-              <Button fullWidth onClick={() => void handleStart()} disabled={startLoading}>
+              <Button fullWidth onClick={() => void handleStart()} disabled={startLoading || loadingNames || allowedNames.length === 0}>
                 {startLoading ? 'Validando...' : 'Iniciar'}
               </Button>
             </div>
